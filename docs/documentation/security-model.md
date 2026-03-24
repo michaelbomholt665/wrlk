@@ -21,8 +21,36 @@ The router does **NOT** protect against:
 
 - Malicious code already inside the host project's allowed package tree
 - Runtime security attacks (it's a development constraint system)
+- Runtime `PATH` injection, command injection, or unsafe process execution
 - Business logic errors
 - Network security issues
+
+## Compile-Time Boundary vs Runtime Execution
+
+The router's `internal/` placement is a **compile-time trust boundary**.
+It ensures that only code inside the owning module tree can import the router
+internals directly. A third-party dependency outside that boundary cannot
+silently import `internal/router` and start using ports without the host
+application explicitly wiring them in.
+
+That protection does **not** extend to runtime process execution.
+If a host application or adapter shells out to external binaries, the router
+does not defend against:
+
+- Untrusted `PATH` resolution
+- Executing a malicious binary found earlier in `PATH`
+- Shell injection from concatenated command strings
+
+Those risks belong to the host application and any adapter that launches
+processes. The router stays intentionally minimal and opt-in, so runtime
+execution policy must be chosen explicitly by the host.
+
+Recommended host-side defaults for process execution:
+
+- Prefer absolute executable paths for security-sensitive commands
+- Use direct process execution APIs instead of invoking a shell
+- Resolve and validate tool paths during trusted startup, then reuse them
+- Treat `PATH` lookup as an explicit relaxed mode, not the default
 
 ## AI Guardrails (Development Constraints)
 
