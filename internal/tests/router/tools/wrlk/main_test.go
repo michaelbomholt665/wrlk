@@ -101,32 +101,11 @@ func TestWrlkLockUpdateWorkflow(t *testing.T) {
 	assert.Contains(t, verifyResult.stdout, "verified")
 }
 
-func TestWrlkLockUpdateAndVerify_PilotRouterFixture(t *testing.T) {
-	fixtureRoot := createPilotFixture(t)
-
-	verifyResult := runWrlkCommand(t, fixtureRoot, "lock", "verify")
-	require.Error(t, verifyResult.err)
-	assert.NotEqual(t, 0, verifyResult.exitCode)
-	assert.Contains(t, verifyResult.stderr, routerLockPath)
-
-	updateResult := runWrlkCommand(t, fixtureRoot, "lock", "update")
-	require.NoError(t, updateResult.err, updateResult.stderr)
-	assert.Equal(t, 0, updateResult.exitCode)
-	assert.FileExists(t, filepath.Join(fixtureRoot, filepath.FromSlash(routerLockPath)))
-
-	verifyResult = runWrlkCommand(t, fixtureRoot, "lock", "verify")
-	require.NoError(t, verifyResult.err, verifyResult.stderr)
-	assert.Equal(t, 0, verifyResult.exitCode)
-	assert.Contains(t, verifyResult.stdout, "verified")
-	assert.Contains(t, verifyResult.stdout, routerExtensionPath)
-	assert.Contains(t, verifyResult.stdout, routerRegistryPath)
-}
-
 func TestWrlkLockRestoreWorkflow(t *testing.T) {
 	fixtureRoot := createRouterFixture(t, map[string]string{
 		routerExtensionPath:                   "package router\n\nfunc RouterLoadExtensions() {}\n",
 		routerRegistryPath:                    "package router\n\nfunc RouterResolveProvider() {}\n",
-		"internal/router/ports.go":            "package router\n\nconst PortConfig = \"config\"\n",
+		"internal/router/ports.go":            "package router\n\nconst PortPrimary = \"primary\"\n",
 		"internal/router/registry_imports.go": "package router\n\nfunc RouterValidatePortName() {}\n",
 	})
 	writeLockFile(t, fixtureRoot, []string{routerExtensionPath, routerRegistryPath})
@@ -135,7 +114,7 @@ func TestWrlkLockRestoreWorkflow(t *testing.T) {
 		Reason:    "test snapshot",
 		Files: []routerSnapshotFile{
 			{File: routerExtensionPath, Exists: true, Content: "package router\n\nfunc RouterLoadExtensions() {}\n"},
-			{File: "internal/router/ports.go", Exists: true, Content: "package router\n\nconst PortConfig = \"config\"\n"},
+			{File: "internal/router/ports.go", Exists: true, Content: "package router\n\nconst PortPrimary = \"primary\"\n"},
 			{File: routerRegistryPath, Exists: true, Content: "package router\n\nfunc RouterResolveProvider() {}\n"},
 			{File: "internal/router/registry_imports.go", Exists: true, Content: "package router\n\nfunc RouterValidatePortName() {}\n"},
 			{File: routerLockPath, Exists: false},
@@ -170,7 +149,7 @@ func TestWrlkLockRestoreWorkflow(t *testing.T) {
 
 	restoredPorts, err := os.ReadFile(filepath.Join(fixtureRoot, filepath.FromSlash("internal/router/ports.go")))
 	require.NoError(t, err)
-	assert.Equal(t, "package router\n\nconst PortConfig = \"config\"\n", string(restoredPorts))
+	assert.Equal(t, "package router\n\nconst PortPrimary = \"primary\"\n", string(restoredPorts))
 
 	assert.NoFileExists(t, filepath.Join(fixtureRoot, filepath.FromSlash(routerLockPath)))
 }
@@ -254,26 +233,6 @@ func createRouterFixture(t *testing.T, files map[string]string) string {
 		absolutePath := filepath.Join(root, filepath.FromSlash(relativePath))
 		require.NoError(t, os.MkdirAll(filepath.Dir(absolutePath), 0o755))
 		require.NoError(t, os.WriteFile(absolutePath, []byte(content), 0o600))
-	}
-
-	return root
-}
-
-func createPilotFixture(t *testing.T) string {
-	t.Helper()
-
-	root := t.TempDir()
-	repoRoot := repositoryRoot(t)
-
-	copyRelativePath(t, repoRoot, root, "go.mod")
-	copyRelativePath(t, repoRoot, root, "go.sum")
-	copyDirectory(t, filepath.Join(repoRoot, "internal", "router"), filepath.Join(root, "internal", "router"))
-	copyDirectory(t, filepath.Join(repoRoot, "internal", "adapters"), filepath.Join(root, "internal", "adapters"))
-	copyDirectory(t, filepath.Join(repoRoot, "internal", "ports"), filepath.Join(root, "internal", "ports"))
-
-	lockPath := filepath.Join(root, filepath.FromSlash(routerLockPath))
-	if err := os.Remove(lockPath); err != nil && !os.IsNotExist(err) {
-		require.NoError(t, err)
 	}
 
 	return root

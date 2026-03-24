@@ -24,8 +24,8 @@ type PortName string
 type Provider any
 
 const (
-	// PortConfig is the configuration provider port.
-	PortConfig PortName = "config"
+	// PortPrimary is the configuration provider port.
+	PortPrimary PortName = "primary"
 )
 `
 
@@ -43,7 +43,7 @@ var registry atomic.Pointer[map[PortName]Provider]
 // RouterValidatePortName reports whether the port is declared in the router whitelist.
 func RouterValidatePortName(port PortName) bool {
 	switch port {
-	case PortConfig:
+	case PortPrimary:
 		return true
 	default:
 		return false
@@ -96,7 +96,7 @@ func TestPortgen_Add_UpdatesValidation(t *testing.T) {
 	content, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(validationRelPath)))
 	require.NoError(t, err)
 
-	assert.Contains(t, string(content), "case PortConfig, PortFoo:")
+	assert.Contains(t, string(content), "case PortPrimary, PortFoo:")
 }
 
 // TestPortgen_Add_ValidationCompiles verifies the generated validation whitelist compiles
@@ -278,11 +278,11 @@ func TestPortgen_Add_Idempotent(t *testing.T) {
 func TestPortgen_Add_DuplicateName_Fails(t *testing.T) {
 	root := createPortgenFixture(t)
 
-	// PortConfig already exists in the fixture.
+	// PortPrimary already exists in the fixture.
 	contentBefore, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(portsRelPath)))
 	require.NoError(t, err)
 
-	result := runPortgenCommand(t, root, "add", "--name", "PortConfig", "--value", "config2")
+	result := runPortgenCommand(t, root, "add", "--name", "PortPrimary", "--value", "config2")
 	require.Error(t, result.err)
 	assert.NotEqual(t, 0, result.exitCode)
 

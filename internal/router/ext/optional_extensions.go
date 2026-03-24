@@ -1,7 +1,7 @@
 package ext
 
-import "policycheck/internal/router"
+import "github.com/michaelbomholt665/wrlk/internal/router"
 
 var optionalExtensions = []router.Extension{
-	&telemetryExample{},
+	&optionalExample{},
 }

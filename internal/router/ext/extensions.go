@@ -6,20 +6,17 @@ import (
 	"os"
 	"strings"
 
-	adapterconfig "policycheck/internal/adapters/config"
-	adapterscanners "policycheck/internal/adapters/scanners"
-	adapterwalk "policycheck/internal/adapters/walk"
-	"policycheck/internal/router"
+	"github.com/michaelbomholt665/wrlk/internal/router"
 )
 
 var extensions = []router.Extension{
-	&configExtension{},
-	&walkExtension{},
-	&scannerExtension{},
+	&primaryExtension{},
+	&secondaryExtension{},
+	&tertiaryExtension{},
 }
 
 const (
-	policyCheckEnvKey = "POLICYCHECK_ENV"
+	wrlkEnvKey        = "WRLK_ENV"
 	routerProfileKey  = "ROUTER_PROFILE"
 	routerAllowAnyKey = "ROUTER_ALLOW_ANY"
 )
@@ -41,7 +38,7 @@ func RouterBootExtensions(ctx context.Context) ([]error, error) {
 
 // validateRouterBootPolicy rejects router profile combinations that are unsafe at boot.
 func validateRouterBootPolicy() error {
-	runtimeEnv := normalizeRouterProfile(os.Getenv(policyCheckEnvKey))
+	runtimeEnv := normalizeRouterProfile(os.Getenv(wrlkEnvKey))
 	declaredProfile := normalizeRouterProfile(os.Getenv(routerProfileKey))
 
 	if declaredProfile != "" && runtimeEnv != "" && declaredProfile != runtimeEnv {
@@ -51,7 +48,7 @@ func validateRouterBootPolicy() error {
 				"%s=%q does not match %s=%q",
 				routerProfileKey,
 				declaredProfile,
-				policyCheckEnvKey,
+				wrlkEnvKey,
 				runtimeEnv,
 			),
 		}
@@ -63,7 +60,7 @@ func validateRouterBootPolicy() error {
 			Err: fmt.Errorf(
 				"%s=true is not allowed when %s=%q",
 				routerAllowAnyKey,
-				policyCheckEnvKey,
+				wrlkEnvKey,
 				runtimeEnv,
 			),
 		}
@@ -87,79 +84,79 @@ func parseRouterBoolEnv(value string) bool {
 	}
 }
 
-type configExtension struct{}
+type primaryExtension struct{}
 
-// Required reports that the config extension is mandatory for boot.
-func (e *configExtension) Required() bool {
+// Required reports that the primary extension is mandatory for boot.
+func (e *primaryExtension) Required() bool {
 	return true
 }
 
-// Consumes reports that the config extension has no boot-time port dependencies.
-func (e *configExtension) Consumes() []router.PortName {
+// Consumes reports that the primary extension has no boot-time port dependencies.
+func (e *primaryExtension) Consumes() []router.PortName {
 	return nil
 }
 
-// Provides reports that the config extension registers the config port.
-func (e *configExtension) Provides() []router.PortName {
-	return []router.PortName{router.PortConfig}
+// Provides reports that the primary extension registers the primary port.
+func (e *primaryExtension) Provides() []router.PortName {
+	return []router.PortName{router.PortPrimary}
 }
 
-// RouterProvideRegistration registers the config provider into the boot registry.
-func (e *configExtension) RouterProvideRegistration(reg *router.Registry) error {
-	if err := reg.RouterRegisterProvider(router.PortConfig, adapterconfig.NewConfigProvider()); err != nil {
-		return fmt.Errorf("register config provider: %w", err)
+// RouterProvideRegistration registers the primary provider into the boot registry.
+func (e *primaryExtension) RouterProvideRegistration(reg *router.Registry) error {
+	if err := reg.RouterRegisterProvider(router.PortPrimary, struct{ Name string }{Name: "standalone-primary"}); err != nil {
+		return fmt.Errorf("register primary provider: %w", err)
 	}
 
 	return nil
 }
 
-type walkExtension struct{}
+type secondaryExtension struct{}
 
-// Required reports that the walk extension is mandatory for boot.
-func (e *walkExtension) Required() bool {
+// Required reports that the secondary extension is mandatory for boot.
+func (e *secondaryExtension) Required() bool {
 	return true
 }
 
-// Consumes reports that the walk extension has no boot-time port dependencies.
-func (e *walkExtension) Consumes() []router.PortName {
+// Consumes reports that the secondary extension has no boot-time port dependencies.
+func (e *secondaryExtension) Consumes() []router.PortName {
 	return nil
 }
 
-// Provides reports that the walk extension registers the walk port.
-func (e *walkExtension) Provides() []router.PortName {
-	return []router.PortName{router.PortWalk}
+// Provides reports that the secondary extension registers the secondary port.
+func (e *secondaryExtension) Provides() []router.PortName {
+	return []router.PortName{router.PortSecondary}
 }
 
-// RouterProvideRegistration registers the walk provider into the boot registry.
-func (e *walkExtension) RouterProvideRegistration(reg *router.Registry) error {
-	if err := reg.RouterRegisterProvider(router.PortWalk, adapterwalk.NewWalkProvider()); err != nil {
-		return fmt.Errorf("register walk provider: %w", err)
+// RouterProvideRegistration registers the secondary provider into the boot registry.
+func (e *secondaryExtension) RouterProvideRegistration(reg *router.Registry) error {
+	if err := reg.RouterRegisterProvider(router.PortSecondary, struct{ Name string }{Name: "standalone-secondary"}); err != nil {
+		return fmt.Errorf("register secondary provider: %w", err)
 	}
 
 	return nil
 }
 
-type scannerExtension struct{}
+type tertiaryExtension struct{}
 
-// Required reports that the scanner extension is mandatory for boot.
-func (e *scannerExtension) Required() bool {
+// Required reports that the tertiary extension is mandatory for boot.
+func (e *tertiaryExtension) Required() bool {
 	return true
 }
 
-// Consumes reports that the scanner extension has no boot-time port dependencies.
-func (e *scannerExtension) Consumes() []router.PortName {
+// Consumes reports that the tertiary extension has no boot-time port dependencies.
+func (e *tertiaryExtension) Consumes() []router.PortName {
 	return nil
 }
 
-// Provides reports that the scanner extension registers the scanner port.
-func (e *scannerExtension) Provides() []router.PortName {
-	return []router.PortName{router.PortScanner}
+// Provides reports that the tertiary extension registers the tertiary port.
+func (e *tertiaryExtension) Provides() []router.PortName {
+	return []router.PortName{router.PortTertiary}
 }
 
-// RouterProvideRegistration registers the scanner provider into the boot registry.
-func (e *scannerExtension) RouterProvideRegistration(reg *router.Registry) error {
-	if err := reg.RouterRegisterProvider(router.PortScanner, adapterscanners.NewScannerProvider()); err != nil {
-		return fmt.Errorf("register scanner provider: %w", err)
+// RouterProvideRegistration registers the tertiary provider into the boot registry.
+func (e *tertiaryExtension) RouterProvideRegistration(reg *router.Registry) error {
+	if err := reg.RouterRegisterProvider(router.PortTertiary, struct{ Name string }{Name: "standalone-tertiary"}); err != nil {
+		return fmt.Errorf("register tertiary provider: %w", err)
 	}
 
 	return nil

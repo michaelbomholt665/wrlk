@@ -7,12 +7,12 @@ type PortName string
 type Provider any
 
 const (
-	// PortConfig is the configuration provider port.
-	PortConfig PortName = "config"
-	// PortWalk is the filesystem walk provider port.
-	PortWalk PortName = "walk"
-	// PortScanner is the scanner provider port.
-	PortScanner PortName = "scanner"
-	// PortTelemetry is the telemetry provider port.
-	PortTelemetry PortName = "telemetry"
+	// PortPrimary is an example primary provider port.
+	PortPrimary PortName = "primary"
+	// PortSecondary is an example secondary provider port.
+	PortSecondary PortName = "secondary"
+	// PortTertiary is an example tertiary provider port.
+	PortTertiary PortName = "tertiary"
+	// PortOptional is an example optional provider port.
+	PortOptional PortName = "optional"
 )

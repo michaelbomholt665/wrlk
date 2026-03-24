@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"policycheck/internal/router"
+	"github.com/michaelbomholt665/wrlk/internal/router"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -38,28 +38,28 @@ func assertRegistryNotBooted(t *testing.T, port router.PortName) {
 }
 
 func (s *RouterSuite) TestBoot_HappyPath() {
-	configProvider := &configProviderStub{path: "isr.toml"}
-	walkProvider := struct{ Name string }{Name: "walk"}
-	scannerProvider := struct{ Name string }{Name: "scanner"}
+	configProvider := &primaryProviderStub{path: "test-config.toml"}
+	walkProvider := struct{ Name string }{Name: "secondary"}
+	scannerProvider := struct{ Name string }{Name: "tertiary"}
 
 	warnings, err := router.RouterLoadExtensions(nil, []router.Extension{
-		requiredExtension(router.PortConfig, configProvider),
-		requiredExtension(router.PortWalk, walkProvider),
-		requiredExtension(router.PortScanner, scannerProvider),
+		requiredExtension(router.PortPrimary, configProvider),
+		requiredExtension(router.PortSecondary, walkProvider),
+		requiredExtension(router.PortTertiary, scannerProvider),
 	}, context.Background())
 
 	require.NoError(s.T(), err)
 	assert.Empty(s.T(), warnings)
 
-	provider, resolveErr := router.RouterResolveProvider(router.PortConfig)
+	provider, resolveErr := router.RouterResolveProvider(router.PortPrimary)
 	require.NoError(s.T(), resolveErr)
 	assert.Same(s.T(), configProvider, provider)
 
-	provider, resolveErr = router.RouterResolveProvider(router.PortWalk)
+	provider, resolveErr = router.RouterResolveProvider(router.PortSecondary)
 	require.NoError(s.T(), resolveErr)
 	assert.Equal(s.T(), walkProvider, provider)
 
-	provider, resolveErr = router.RouterResolveProvider(router.PortScanner)
+	provider, resolveErr = router.RouterResolveProvider(router.PortTertiary)
 	require.NoError(s.T(), resolveErr)
 	assert.Equal(s.T(), scannerProvider, provider)
 }
@@ -70,7 +70,7 @@ func (s *RouterSuite) TestBoot_EmptyExtensionSlices() {
 	require.NoError(s.T(), err)
 	assert.Empty(s.T(), warnings)
 
-	provider, resolveErr := router.RouterResolveProvider(router.PortConfig)
+	provider, resolveErr := router.RouterResolveProvider(router.PortPrimary)
 	require.Error(s.T(), resolveErr)
 	assert.Nil(s.T(), provider)
 
@@ -82,26 +82,26 @@ func (s *RouterSuite) TestBoot_EmptyExtensionSlices() {
 func (s *RouterSuite) TestBoot_RequiredFails_AbortsAll() {
 	warnings, err := router.RouterLoadExtensions(nil, []router.Extension{
 		failingRequiredExtension(errors.New("required boot failed")),
-		requiredExtension(router.PortConfig, &configProviderStub{path: "ignored.toml"}),
+		requiredExtension(router.PortPrimary, &primaryProviderStub{path: "ignored.toml"}),
 	}, context.Background())
 
 	require.Error(s.T(), err)
 	assert.Nil(s.T(), warnings)
 	requireRouterErrorCode(s.T(), err, router.RequiredExtensionFailed)
-	assertRegistryNotBooted(s.T(), router.PortConfig)
+	assertRegistryNotBooted(s.T(), router.PortPrimary)
 }
 
 func (s *RouterSuite) TestBoot_OptionalFails_Continues() {
 	warnings, err := router.RouterLoadExtensions(nil, []router.Extension{
 		failingOptionalExtension(errors.New("optional boot failed")),
-		requiredExtension(router.PortConfig, &configProviderStub{path: "isr.toml"}),
+		requiredExtension(router.PortPrimary, &primaryProviderStub{path: "test-config.toml"}),
 	}, context.Background())
 
 	require.NoError(s.T(), err)
 	require.Len(s.T(), warnings, 1)
 	requireRouterErrorCode(s.T(), warnings[0], router.OptionalExtensionFailed)
 
-	provider, resolveErr := router.RouterResolveProvider(router.PortConfig)
+	provider, resolveErr := router.RouterResolveProvider(router.PortPrimary)
 	require.NoError(s.T(), resolveErr)
 	assert.NotNil(s.T(), provider)
 }
@@ -111,13 +111,13 @@ func (s *RouterSuite) TestBoot_AsyncCompletes_BeforeDeadline() {
 	defer cancel()
 
 	warnings, err := router.RouterLoadExtensions(nil, []router.Extension{
-		asyncExtension(router.PortConfig, 10*time.Millisecond),
+		asyncExtension(router.PortPrimary, 10*time.Millisecond),
 	}, ctx)
 
 	require.NoError(s.T(), err)
 	assert.Empty(s.T(), warnings)
 
-	provider, resolveErr := router.RouterResolveProvider(router.PortConfig)
+	provider, resolveErr := router.RouterResolveProvider(router.PortPrimary)
 	require.NoError(s.T(), resolveErr)
 	assert.NotNil(s.T(), provider)
 }
@@ -127,13 +127,13 @@ func (s *RouterSuite) TestBoot_AsyncTimeout() {
 	defer cancel()
 
 	warnings, err := router.RouterLoadExtensions(nil, []router.Extension{
-		asyncExtension(router.PortConfig, 100*time.Millisecond),
+		asyncExtension(router.PortPrimary, 100*time.Millisecond),
 	}, ctx)
 
 	require.Error(s.T(), err)
 	assert.Nil(s.T(), warnings)
 	requireRouterErrorCode(s.T(), err, router.AsyncInitTimeout)
-	assertRegistryNotBooted(s.T(), router.PortConfig)
+	assertRegistryNotBooted(s.T(), router.PortPrimary)
 }
 
 func (s *RouterSuite) TestBoot_ContextCancelled_StopsAsync() {
@@ -145,23 +145,23 @@ func (s *RouterSuite) TestBoot_ContextCancelled_StopsAsync() {
 	}()
 
 	warnings, err := router.RouterLoadExtensions(nil, []router.Extension{
-		asyncExtension(router.PortConfig, 100*time.Millisecond),
+		asyncExtension(router.PortPrimary, 100*time.Millisecond),
 	}, ctx)
 
 	require.Error(s.T(), err)
 	assert.Nil(s.T(), warnings)
 	requireRouterErrorCode(s.T(), err, router.AsyncInitTimeout)
-	assertRegistryNotBooted(s.T(), router.PortConfig)
+	assertRegistryNotBooted(s.T(), router.PortPrimary)
 }
 
 func (s *RouterSuite) TestBoot_DependencyOrderViolation_MessageFormat() {
 	warnings, err := router.RouterLoadExtensions(nil, []router.Extension{
 		&MockExtension{
 			IsRequired:    true,
-			ConsumedPorts: []router.PortName{router.PortConfig},
-			RegistersPort: router.PortWalk,
+			ConsumedPorts: []router.PortName{router.PortPrimary},
+			RegistersPort: router.PortSecondary,
 			RegistersProvider: struct{ Name string }{
-				Name: "walk",
+				Name: "secondary",
 			},
 		},
 	}, context.Background())
@@ -169,24 +169,24 @@ func (s *RouterSuite) TestBoot_DependencyOrderViolation_MessageFormat() {
 	require.Error(s.T(), err)
 	assert.Nil(s.T(), warnings)
 	requireRouterErrorCode(s.T(), err, router.DependencyOrderViolation)
-	assert.Contains(s.T(), err.Error(), "config")
+	assert.Contains(s.T(), err.Error(), "primary")
 	assert.Contains(s.T(), err.Error(), "If this port is registered in extensions.go or optional_extensions.go, the initialization order is wrong.")
 	assert.Contains(s.T(), err.Error(), "Move the providing extension higher up in the correct extensions slice.")
-	assertRegistryNotBooted(s.T(), router.PortConfig)
+	assertRegistryNotBooted(s.T(), router.PortPrimary)
 }
 
 func (s *RouterSuite) TestBoot_OptionalLayer_BootsBeforeApplication() {
 	warnings, err := router.RouterLoadExtensions(
 		[]router.Extension{
-			requiredExtension(router.PortConfig, &configProviderStub{path: "isr.toml"}),
+			requiredExtension(router.PortPrimary, &primaryProviderStub{path: "test-config.toml"}),
 		},
 		[]router.Extension{
 			&MockExtension{
 				IsRequired:    true,
-				ConsumedPorts: []router.PortName{router.PortConfig},
-				RegistersPort: router.PortWalk,
+				ConsumedPorts: []router.PortName{router.PortPrimary},
+				RegistersPort: router.PortSecondary,
 				RegistersProvider: struct{ Name string }{
-					Name: "walk",
+					Name: "secondary",
 				},
 			},
 		},
@@ -196,7 +196,7 @@ func (s *RouterSuite) TestBoot_OptionalLayer_BootsBeforeApplication() {
 	require.NoError(s.T(), err)
 	assert.Empty(s.T(), warnings)
 
-	provider, resolveErr := router.RouterResolveProvider(router.PortWalk)
+	provider, resolveErr := router.RouterResolveProvider(router.PortSecondary)
 	require.NoError(s.T(), resolveErr)
 	assert.NotNil(s.T(), provider)
 }
@@ -207,10 +207,10 @@ func (s *RouterSuite) TestBoot_CrossLayer_DependencyOrderViolation() {
 		[]router.Extension{
 			&MockExtension{
 				IsRequired:    true,
-				ConsumedPorts: []router.PortName{router.PortConfig},
-				RegistersPort: router.PortWalk,
+				ConsumedPorts: []router.PortName{router.PortPrimary},
+				RegistersPort: router.PortSecondary,
 				RegistersProvider: struct{ Name string }{
-					Name: "walk",
+					Name: "secondary",
 				},
 			},
 		},
@@ -220,8 +220,8 @@ func (s *RouterSuite) TestBoot_CrossLayer_DependencyOrderViolation() {
 	require.Error(s.T(), err)
 	assert.Nil(s.T(), warnings)
 	requireRouterErrorCode(s.T(), err, router.DependencyOrderViolation)
-	assert.Contains(s.T(), err.Error(), "config")
-	assertRegistryNotBooted(s.T(), router.PortWalk)
+	assert.Contains(s.T(), err.Error(), "primary")
+	assertRegistryNotBooted(s.T(), router.PortSecondary)
 }
 
 func (s *RouterSuite) TestBoot_ErrorFormatter_UsedForThatExtension() {
@@ -241,7 +241,7 @@ func (s *RouterSuite) TestBoot_ErrorFormatter_UsedForThatExtension() {
 	require.Error(s.T(), err)
 	assert.Nil(s.T(), warnings)
 	assert.ErrorContains(s.T(), err, "formatted extension error")
-	assertRegistryNotBooted(s.T(), router.PortConfig)
+	assertRegistryNotBooted(s.T(), router.PortPrimary)
 }
 
 func (s *RouterSuite) TestBoot_ErrorFormatter_CannotDowngradeFatal() {
@@ -263,7 +263,7 @@ func (s *RouterSuite) TestBoot_ErrorFormatter_CannotDowngradeFatal() {
 	require.Error(s.T(), err)
 	assert.Nil(s.T(), warnings)
 	requireRouterErrorCode(s.T(), err, router.RequiredExtensionFailed)
-	assertRegistryNotBooted(s.T(), router.PortConfig)
+	assertRegistryNotBooted(s.T(), router.PortPrimary)
 }
 
 func (s *RouterSuite) TestBoot_ErrorFormatter_DoesNotMutateReturnedRouterError() {
@@ -293,19 +293,19 @@ func (s *RouterSuite) TestBoot_TopologicalSort_ResolvesOutOfOrderSlice() {
 	warnings, err := router.RouterLoadExtensions(nil, []router.Extension{
 		&MockExtension{
 			IsRequired:    true,
-			ConsumedPorts: []router.PortName{router.PortConfig},
-			RegistersPort: router.PortWalk,
+			ConsumedPorts: []router.PortName{router.PortPrimary},
+			RegistersPort: router.PortSecondary,
 			RegistersProvider: struct{ Name string }{
-				Name: "walk",
+				Name: "secondary",
 			},
 		},
-		requiredExtension(router.PortConfig, &configProviderStub{path: "isr.toml"}),
+		requiredExtension(router.PortPrimary, &primaryProviderStub{path: "test-config.toml"}),
 	}, context.Background())
 
 	require.NoError(s.T(), err, "Topological sort should reorder the slice so config boots before walk")
 	assert.Empty(s.T(), warnings)
 
-	provider, resolveErr := router.RouterResolveProvider(router.PortWalk)
+	provider, resolveErr := router.RouterResolveProvider(router.PortSecondary)
 	require.NoError(s.T(), resolveErr)
 	assert.NotNil(s.T(), provider)
 }
@@ -318,19 +318,19 @@ func (s *RouterSuite) TestBoot_TopologicalSort_MultiLayerChain() {
 	warnings, err := router.RouterLoadExtensions(nil, []router.Extension{
 		&MockExtension{ // C
 			IsRequired:    true,
-			ConsumedPorts: []router.PortName{router.PortWalk},
-			RegistersPort: router.PortScanner,
+			ConsumedPorts: []router.PortName{router.PortSecondary},
+			RegistersPort: router.PortTertiary,
 			RegistersProvider: struct{ Name string }{
-				Name: "scanner",
+				Name: "tertiary",
 			},
 		},
-		requiredExtension(router.PortConfig, &configProviderStub{path: "isr.toml"}), // A
+		requiredExtension(router.PortPrimary, &primaryProviderStub{path: "test-config.toml"}), // A
 		&MockExtension{ // B
 			IsRequired:    true,
-			ConsumedPorts: []router.PortName{router.PortConfig},
-			RegistersPort: router.PortWalk,
+			ConsumedPorts: []router.PortName{router.PortPrimary},
+			RegistersPort: router.PortSecondary,
 			RegistersProvider: struct{ Name string }{
-				Name: "walk",
+				Name: "secondary",
 			},
 		},
 	}, context.Background())
@@ -338,7 +338,7 @@ func (s *RouterSuite) TestBoot_TopologicalSort_MultiLayerChain() {
 	require.NoError(s.T(), err, "Topological sort should sequence A -> B -> C correctly")
 	assert.Empty(s.T(), warnings)
 
-	provider, resolveErr := router.RouterResolveProvider(router.PortScanner)
+	provider, resolveErr := router.RouterResolveProvider(router.PortTertiary)
 	require.NoError(s.T(), resolveErr)
 	assert.NotNil(s.T(), provider)
 }
@@ -349,14 +349,14 @@ func (s *RouterSuite) TestBoot_TopologicalSort_CyclicDependency_Fails() {
 	warnings, err := router.RouterLoadExtensions(nil, []router.Extension{
 		&MockExtension{
 			IsRequired:        true,
-			ConsumedPorts:     []router.PortName{router.PortWalk},
-			RegistersPort:     router.PortConfig,
+			ConsumedPorts:     []router.PortName{router.PortSecondary},
+			RegistersPort:     router.PortPrimary,
 			RegistersProvider: struct{ Name string }{},
 		},
 		&MockExtension{
 			IsRequired:        true,
-			ConsumedPorts:     []router.PortName{router.PortConfig},
-			RegistersPort:     router.PortWalk,
+			ConsumedPorts:     []router.PortName{router.PortPrimary},
+			RegistersPort:     router.PortSecondary,
 			RegistersProvider: struct{ Name string }{},
 		},
 	}, context.Background())
@@ -371,8 +371,8 @@ func (s *RouterSuite) TestBoot_DependencyGraph_DoesNotDoubleExecuteRegistration(
 	registrationCalls := 0
 	ext := &MockExtension{
 		IsRequired:        true,
-		RegistersPort:     router.PortConfig,
-		RegistersProvider: &configProviderStub{path: "isr.toml"},
+		RegistersPort:     router.PortPrimary,
+		RegistersProvider: &primaryProviderStub{path: "test-config.toml"},
 		RegistrationCalls: &registrationCalls,
 	}
 
@@ -388,14 +388,14 @@ func (s *RouterSuite) TestBoot_DependencyGraph_DetectsDuplicateProvidesBeforeReg
 	secondCalls := 0
 	firstExt := &MockExtension{
 		IsRequired:        true,
-		RegistersPort:     router.PortConfig,
-		RegistersProvider: &configProviderStub{path: "first.toml"},
+		RegistersPort:     router.PortPrimary,
+		RegistersProvider: &primaryProviderStub{path: "first.toml"},
 		RegistrationCalls: &firstCalls,
 	}
 	secondExt := &MockExtension{
 		IsRequired:        true,
-		RegistersPort:     router.PortConfig,
-		RegistersProvider: &configProviderStub{path: "second.toml"},
+		RegistersPort:     router.PortPrimary,
+		RegistersProvider: &primaryProviderStub{path: "second.toml"},
 		RegistrationCalls: &secondCalls,
 	}
 
@@ -414,7 +414,7 @@ func (s *RouterSuite) TestBoot_DependencyGraph_DetectsDuplicateProvidesBeforeReg
 func (s *RouterSuite) TestBoot_NilExtension_IsIgnored() {
 	warnings, err := router.RouterLoadExtensions(nil, []router.Extension{
 		nil,
-		requiredExtension(router.PortConfig, &configProviderStub{path: "isr.toml"}),
+		requiredExtension(router.PortPrimary, &primaryProviderStub{path: "test-config.toml"}),
 	}, context.Background())
 
 	require.NoError(s.T(), err)
@@ -426,7 +426,7 @@ func (s *RouterSuite) TestBoot_OptionalExtension_RegistersCapability() {
 		[]router.Extension{
 			&MockExtension{
 				IsRequired:        false,
-				RegistersPort:     router.PortConfig,
+				RegistersPort:     router.PortPrimary,
 				RegistersProvider: struct{ Name string }{Name: "optional"},
 			},
 		},
@@ -437,7 +437,7 @@ func (s *RouterSuite) TestBoot_OptionalExtension_RegistersCapability() {
 	require.NoError(s.T(), err)
 	assert.Empty(s.T(), warnings)
 
-	provider, resolveErr := router.RouterResolveProvider(router.PortConfig)
+	provider, resolveErr := router.RouterResolveProvider(router.PortPrimary)
 	require.NoError(s.T(), resolveErr)
 	assert.NotNil(s.T(), provider)
 }
@@ -447,16 +447,16 @@ func (s *RouterSuite) TestBoot_OptionalExtension_CapabilityConsumedByApplication
 		[]router.Extension{
 			&MockExtension{
 				IsRequired:        false,
-				RegistersPort:     router.PortWalk,
+				RegistersPort:     router.PortSecondary,
 				RegistersProvider: struct{ Name string }{Name: "optional-walk"},
 			},
 		},
 		[]router.Extension{
 			&MockExtension{
 				IsRequired:        true,
-				ConsumedPorts:     []router.PortName{router.PortWalk},
-				RegistersPort:     router.PortConfig,
-				RegistersProvider: struct{ Name string }{Name: "application-config"},
+				ConsumedPorts:     []router.PortName{router.PortSecondary},
+				RegistersPort:     router.PortPrimary,
+				RegistersProvider: struct{ Name string }{Name: "application-primary"},
 			},
 		},
 		context.Background(),
@@ -465,7 +465,7 @@ func (s *RouterSuite) TestBoot_OptionalExtension_CapabilityConsumedByApplication
 	require.NoError(s.T(), err)
 	assert.Empty(s.T(), warnings)
 
-	provider, resolveErr := router.RouterResolveProvider(router.PortConfig)
+	provider, resolveErr := router.RouterResolveProvider(router.PortPrimary)
 	require.NoError(s.T(), resolveErr)
 	assert.NotNil(s.T(), provider)
 }
@@ -476,7 +476,7 @@ func (s *RouterSuite) TestBoot_OptionalLayer_NoExtensions_BootStillSucceeds() {
 		[]router.Extension{
 			&MockExtension{
 				IsRequired:        true,
-				RegistersPort:     router.PortWalk,
+				RegistersPort:     router.PortSecondary,
 				RegistersProvider: struct{ Name string }{Name: "application-walk"},
 			},
 		},
@@ -486,7 +486,7 @@ func (s *RouterSuite) TestBoot_OptionalLayer_NoExtensions_BootStillSucceeds() {
 	require.NoError(s.T(), err)
 	assert.Empty(s.T(), warnings)
 
-	provider, resolveErr := router.RouterResolveProvider(router.PortWalk)
+	provider, resolveErr := router.RouterResolveProvider(router.PortSecondary)
 	require.NoError(s.T(), resolveErr)
 	assert.NotNil(s.T(), provider)
 }

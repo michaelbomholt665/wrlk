@@ -3,7 +3,7 @@ package router_test
 import (
 	"context"
 
-	"policycheck/internal/router"
+	"github.com/michaelbomholt665/wrlk/internal/router"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,42 +36,42 @@ func withRestriction(port router.PortName, provider router.Provider, allowed []s
 }
 
 func (s *RouterSuite) TestRestricted_TrustedConsumer_Resolves() {
-	ext := withRestriction(router.PortConfig, struct{}{}, []string{"trusted-user"})
+	ext := withRestriction(router.PortPrimary, struct{}{}, []string{"trusted-user"})
 
 	_, err := router.RouterLoadExtensions(nil, []router.Extension{ext}, context.Background())
 	require.NoError(s.T(), err)
 
-	provider, err := router.RouterResolveRestrictedPort(router.PortConfig, "trusted-user")
+	provider, err := router.RouterResolveRestrictedPort(router.PortPrimary, "trusted-user")
 	require.NoError(s.T(), err, "trusted consumer should resolve port")
 	require.NotNil(s.T(), provider, "provider should be non-nil")
 }
 
 func (s *RouterSuite) TestRestricted_UntrustedConsumer_AccessDenied() {
-	ext := withRestriction(router.PortConfig, struct{}{}, []string{"trusted-user"})
+	ext := withRestriction(router.PortPrimary, struct{}{}, []string{"trusted-user"})
 
 	_, err := router.RouterLoadExtensions(nil, []router.Extension{ext}, context.Background())
 	require.NoError(s.T(), err)
 
-	provider, err := router.RouterResolveRestrictedPort(router.PortConfig, "untrusted-user")
+	provider, err := router.RouterResolveRestrictedPort(router.PortPrimary, "untrusted-user")
 	require.Error(s.T(), err)
 	require.Nil(s.T(), provider)
 
 	var routerErr *router.RouterError
 	require.ErrorAs(s.T(), err, &routerErr)
 	assert.Equal(s.T(), router.PortAccessDenied, routerErr.Code)
-	assert.Equal(s.T(), router.PortConfig, routerErr.Port)
+	assert.Equal(s.T(), router.PortPrimary, routerErr.Port)
 	assert.Equal(s.T(), "untrusted-user", routerErr.ConsumerID)
 	assert.Contains(s.T(), err.Error(), "untrusted-user")
-	assert.Contains(s.T(), err.Error(), "config")
+	assert.Contains(s.T(), err.Error(), "primary")
 }
 
 func (s *RouterSuite) TestRestricted_EmptyConsumerID_AccessDenied() {
-	ext := withRestriction(router.PortConfig, struct{}{}, []string{"trusted-user"})
+	ext := withRestriction(router.PortPrimary, struct{}{}, []string{"trusted-user"})
 
 	_, err := router.RouterLoadExtensions(nil, []router.Extension{ext}, context.Background())
 	require.NoError(s.T(), err)
 
-	provider, err := router.RouterResolveRestrictedPort(router.PortConfig, "")
+	provider, err := router.RouterResolveRestrictedPort(router.PortPrimary, "")
 	require.Error(s.T(), err)
 	require.Nil(s.T(), provider)
 
@@ -82,33 +82,33 @@ func (s *RouterSuite) TestRestricted_EmptyConsumerID_AccessDenied() {
 }
 
 func (s *RouterSuite) TestRestricted_AnyConsumer_WildcardResolves() {
-	ext := withRestriction(router.PortConfig, struct{}{}, []string{"Any"})
+	ext := withRestriction(router.PortPrimary, struct{}{}, []string{"Any"})
 
 	_, err := router.RouterLoadExtensions(nil, []router.Extension{ext}, context.Background())
 	require.NoError(s.T(), err)
 
-	provider, err := router.RouterResolveRestrictedPort(router.PortConfig, "some-random-consumer")
+	provider, err := router.RouterResolveRestrictedPort(router.PortPrimary, "some-random-consumer")
 	require.NoError(s.T(), err)
 	require.NotNil(s.T(), provider)
 }
 
 func (s *RouterSuite) TestRestricted_UnrestrictedPort_AlwaysResolvable() {
-	ext := requiredExtension(router.PortWalk, struct{}{})
+	ext := requiredExtension(router.PortSecondary, struct{}{})
 
 	_, err := router.RouterLoadExtensions(nil, []router.Extension{ext}, context.Background())
 	require.NoError(s.T(), err, "router boot failed")
 
-	provider, err := router.RouterResolveProvider(router.PortWalk)
+	provider, err := router.RouterResolveProvider(router.PortSecondary)
 	require.NoError(s.T(), err)
 	require.NotNil(s.T(), provider)
 
-	provider2, err := router.RouterResolveRestrictedPort(router.PortWalk, "any-user")
+	provider2, err := router.RouterResolveRestrictedPort(router.PortSecondary, "any-user")
 	require.NoError(s.T(), err)
 	require.NotNil(s.T(), provider2)
 }
 
 func (s *RouterSuite) TestRestricted_TrustPolicy_InMutableWiringOnly() {
-	ext := withRestriction(router.PortConfig, struct{}{}, []string{"trusted"})
+	ext := withRestriction(router.PortPrimary, struct{}{}, []string{"trusted"})
 
 	require.NotNil(s.T(), ext)
 }

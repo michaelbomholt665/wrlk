@@ -1,25 +1,30 @@
-*.sqlite
-*.sqlite-shm
-*.sqlite-wal
+# Executables
+wrlk
+wrlk.exe
 
-.isr/staging/*.ndjson
+# Output & Staging
+.wrlk/staging/*.ndjson
+.wrlk/exports/*.tsv
 
-# dist/*
-!dist/scanner.cjs
-node_modules/
+# Environment
+.env*
+!.env*.example
+
+# Python
 __pycache__/
 .venv/
-isr
 .mypy_cache/
-.qodo/
 .ruff_cache/
-docs/
-# .vscode/
 
-# agents
-.agents
-.cursor
-.antigravity
-.codex
-.gemini
-.claude 
+# IDE & AI Tools
+.qodo/
+.agents/
+.cursor/
+.antigravity/
+.codex/
+.gemini/
+.claude/
+.vscode/
+
+# scripts
+scripts/

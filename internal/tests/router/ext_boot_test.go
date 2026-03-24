@@ -4,15 +4,15 @@ import (
 	"context"
 	"sort"
 
-	"policycheck/internal/router"
-	"policycheck/internal/router/ext"
+	"github.com/michaelbomholt665/wrlk/internal/router"
+	"github.com/michaelbomholt665/wrlk/internal/router/ext"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func (s *RouterSuite) TestBootExtensions_ProfileMismatch_FailsBeforeBoot() {
-	s.T().Setenv("POLICYCHECK_ENV", "prod")
+	s.T().Setenv("WRLK_ENV", "prod")
 	s.T().Setenv("ROUTER_PROFILE", "dev")
 
 	warnings, err := ext.RouterBootExtensions(context.Background())
@@ -20,11 +20,11 @@ func (s *RouterSuite) TestBootExtensions_ProfileMismatch_FailsBeforeBoot() {
 	require.Error(s.T(), err)
 	assert.Nil(s.T(), warnings)
 	requireRouterErrorCode(s.T(), err, router.RouterEnvironmentMismatch)
-	assertRegistryNotBooted(s.T(), router.PortConfig)
+	assertRegistryNotBooted(s.T(), router.PortPrimary)
 }
 
 func (s *RouterSuite) TestBootExtensions_ProdAllowAny_FailsBeforeBoot() {
-	s.T().Setenv("POLICYCHECK_ENV", "prod")
+	s.T().Setenv("WRLK_ENV", "prod")
 	s.T().Setenv("ROUTER_ALLOW_ANY", "true")
 
 	warnings, err := ext.RouterBootExtensions(context.Background())
@@ -32,7 +32,7 @@ func (s *RouterSuite) TestBootExtensions_ProdAllowAny_FailsBeforeBoot() {
 	require.Error(s.T(), err)
 	assert.Nil(s.T(), warnings)
 	requireRouterErrorCode(s.T(), err, router.RouterProfileInvalid)
-	assertRegistryNotBooted(s.T(), router.PortConfig)
+	assertRegistryNotBooted(s.T(), router.PortPrimary)
 }
 
 func (s *RouterSuite) TestBuildExtensionBundle_ProvidesMatchesRegistration() {

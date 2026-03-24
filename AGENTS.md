@@ -43,11 +43,11 @@ python scripts/scanner_test.py -v
 Policy:
 
 ```powershell
-go run ./cmd/policycheck --policy-list
-go run ./cmd/policycheck
+go run ./internal/router/tools/wrlk --help
+go run ./internal/router/tools/wrlk
 ```
 
-Run `go run ./cmd/policycheck` 1-3 times during implementation and always before completion.
+Run `go run ./internal/router/tools/wrlk` 1-3 times during implementation and always before completion.
 
 ## Non-Negotiables
 
@@ -64,7 +64,7 @@ Run `go run ./cmd/policycheck` 1-3 times during implementation and always before
 Do:
 
 - Use `flag.NewFlagSet(name, flag.ContinueOnError)` for every subcommand.
-- Add `--config` to every new `Run*` function with default `"isr.toml"`.
+- Add `--config` to every new `Run*` function with default `"test-config.toml"`.
 - Wrap returned errors with context: `fmt.Errorf("context: %w", err)`.
 - Defer cleanup for DB handles, rows, and statements.
 - Keep package-level constants in `UPPER_CASE` and compile reused regexes once at package scope.
@@ -80,7 +80,7 @@ Do not:
 - Use `gofmt`. Use `gofumpt`.
 - Use CLI frameworks such as Cobra, Kong, or `urfave/cli`.
 - Add global config state or singleton config caches.
-- Hardcode config paths. Use `fs.String("config", "isr.toml", ...)`.
+- Hardcode config paths. Use `fs.String("config", "test-config.toml", ...)`.
 - Create `schema_id` values at runtime without matching TOML declarations.
 - Write tests under `internal/adapters/`. Go tests belong in `internal/tests/`.
 - Write directly to `os.Stdout` in adapters. Use `fmt.Fprintf(os.Stdout, ...)`.
@@ -98,7 +98,7 @@ CLI:
 
 Config:
 
-- `isr.toml` is loaded fresh on each command.
+- `test-config.toml` is loaded fresh on each command.
 - `[registry.contracts]` is the only authoritative source for contract identities.
 - `[registry.domains]` must be non-empty if any contracts are declared.
 
@@ -140,14 +140,14 @@ Scanners:
 
 ## File Pointers
 
-- CLI entry: `cmd/isr/main.go`
+- CLI entry: `cmd/wrlk/main.go`
 - Dispatch table: `internal/app/run.go`
 - Config structs: `internal/config/config.go`
-- Schema DDL: `docs/database/isr_schema.sql`
+- Schema DDL: `docs/database/wrlk_schema.sql`
 - Shared schema DDL: `docs/database/project_shared.sql`
 - All Go tests: `internal/tests/`
-- Staged observations: `.isr/staging/staged.<lang>.ndjson`
-- Exports: `.isr/exports/<filter>_<timestamp>.tsv`
-- Embedded scripts: `.isr/scripts/`
+- Staged observations: `.wrlk/staging/staged.<lang>.ndjson`
+- Exports: `.wrlk/exports/<filter>_<timestamp>.tsv`
+- Embedded scripts: `.wrlk/scripts/`
 - Design docs: `docs/Design/01-05_*.md`
 - Codebase report: `docs/reports/codebase_report.md`

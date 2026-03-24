@@ -2,9 +2,10 @@ package router_test
 
 import (
 	"context"
-	"policycheck/internal/router"
 	"sync"
 	"testing"
+
+	"github.com/michaelbomholt665/wrlk/internal/router"
 )
 
 // Run with: go test -tags test '-bench=.' -benchtime=3s './internal/tests/router/...'
@@ -15,8 +16,8 @@ func BenchmarkRouterResolve(b *testing.B) {
 		nil,
 		[]router.Extension{
 			requiredExtension(
-				router.PortConfig,
-				&configProviderStub{path: "isr.toml"},
+				router.PortPrimary,
+				&primaryProviderStub{path: "test-config.toml"},
 			),
 		},
 		context.Background(),
@@ -28,7 +29,7 @@ func BenchmarkRouterResolve(b *testing.B) {
 
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			if _, err := router.RouterResolveProvider(router.PortConfig); err != nil {
+			if _, err := router.RouterResolveProvider(router.PortPrimary); err != nil {
 				b.Fatalf("RouterResolveProvider: %v", err)
 			}
 		}
@@ -45,8 +46,8 @@ func BenchmarkRouterResolveRWMutex(b *testing.B) {
 		nil,
 		[]router.Extension{
 			requiredExtension(
-				router.PortConfig,
-				&configProviderStub{path: "isr.toml"},
+				router.PortPrimary,
+				&primaryProviderStub{path: "test-config.toml"},
 			),
 		},
 		context.Background(),
@@ -58,7 +59,7 @@ func BenchmarkRouterResolveRWMutex(b *testing.B) {
 	var mu sync.RWMutex
 
 	regMap := map[router.PortName]router.Provider{
-		router.PortConfig: &configProviderStub{path: "isr.toml"},
+		router.PortPrimary: &primaryProviderStub{path: "test-config.toml"},
 	}
 
 	// resolveRW mirrors RouterResolveProvider using RWMutex.
@@ -74,7 +75,7 @@ func BenchmarkRouterResolveRWMutex(b *testing.B) {
 
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			if _, ok := resolveRW(router.PortConfig); !ok {
+			if _, ok := resolveRW(router.PortPrimary); !ok {
 				b.Fatal("resolveRW: port not found")
 			}
 		}

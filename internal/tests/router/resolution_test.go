@@ -2,27 +2,28 @@ package router_test
 
 import (
 	"context"
-	"policycheck/internal/router"
 	"sync"
+
+	"github.com/michaelbomholt665/wrlk/internal/router"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-type configContract interface {
+type primaryContract interface {
 	ConfigPath() string
 }
 
-type configProviderStub struct {
+type primaryProviderStub struct {
 	path string
 }
 
-func (c configProviderStub) ConfigPath() string {
+func (c primaryProviderStub) ConfigPath() string {
 	return c.path
 }
 
 func (s *RouterSuite) TestRegistryNotBooted_BeforeBoot() {
-	provider, err := router.RouterResolveProvider(router.PortConfig)
+	provider, err := router.RouterResolveProvider(router.PortPrimary)
 
 	require.Error(s.T(), err)
 	assert.Nil(s.T(), provider)
@@ -34,13 +35,13 @@ func (s *RouterSuite) TestRegistryNotBooted_BeforeBoot() {
 
 func (s *RouterSuite) TestPortNotFound_IncludesPortName() {
 	warnings, err := router.RouterLoadExtensions(nil, []router.Extension{
-		requiredExtension(router.PortConfig, configProviderStub{path: "isr.toml"}),
+		requiredExtension(router.PortPrimary, primaryProviderStub{path: "test-config.toml"}),
 	}, context.Background())
 
 	require.NoError(s.T(), err)
 	assert.Empty(s.T(), warnings)
 
-	provider, resolveErr := router.RouterResolveProvider(router.PortWalk)
+	provider, resolveErr := router.RouterResolveProvider(router.PortSecondary)
 
 	require.Error(s.T(), resolveErr)
 	assert.Nil(s.T(), provider)
@@ -48,37 +49,37 @@ func (s *RouterSuite) TestPortNotFound_IncludesPortName() {
 	var routerErr *router.RouterError
 	require.ErrorAs(s.T(), resolveErr, &routerErr)
 	assert.Equal(s.T(), router.PortNotFound, routerErr.Code)
-	assert.Contains(s.T(), resolveErr.Error(), "walk")
+	assert.Contains(s.T(), resolveErr.Error(), "secondary")
 }
 
 func (s *RouterSuite) TestResolve_ReturnsCorrectProvider() {
-	expectedProvider := &configProviderStub{path: "isr.toml"}
+	expectedProvider := &primaryProviderStub{path: "test-config.toml"}
 
 	warnings, err := router.RouterLoadExtensions(nil, []router.Extension{
-		requiredExtension(router.PortConfig, expectedProvider),
+		requiredExtension(router.PortPrimary, expectedProvider),
 	}, context.Background())
 
 	require.NoError(s.T(), err)
 	assert.Empty(s.T(), warnings)
 
-	provider, resolveErr := router.RouterResolveProvider(router.PortConfig)
+	provider, resolveErr := router.RouterResolveProvider(router.PortPrimary)
 
 	require.NoError(s.T(), resolveErr)
 	assert.Same(s.T(), expectedProvider, provider)
 }
 
 func (s *RouterSuite) TestResolve_ImmutableAfterBoot() {
-	firstProvider := configProviderStub{path: "first.toml"}
+	firstProvider := primaryProviderStub{path: "first.toml"}
 
 	warnings, err := router.RouterLoadExtensions(nil, []router.Extension{
-		requiredExtension(router.PortConfig, firstProvider),
+		requiredExtension(router.PortPrimary, firstProvider),
 	}, context.Background())
 
 	require.NoError(s.T(), err)
 	assert.Empty(s.T(), warnings)
 
 	secondWarnings, secondErr := router.RouterLoadExtensions(nil, []router.Extension{
-		requiredExtension(router.PortConfig, configProviderStub{path: "second.toml"}),
+		requiredExtension(router.PortPrimary, primaryProviderStub{path: "second.toml"}),
 	}, context.Background())
 
 	require.Error(s.T(), secondErr)
@@ -88,16 +89,16 @@ func (s *RouterSuite) TestResolve_ImmutableAfterBoot() {
 	require.ErrorAs(s.T(), secondErr, &routerErr)
 	assert.Equal(s.T(), router.MultipleInitializations, routerErr.Code)
 
-	provider, resolveErr := router.RouterResolveProvider(router.PortConfig)
+	provider, resolveErr := router.RouterResolveProvider(router.PortPrimary)
 	require.NoError(s.T(), resolveErr)
 	assert.Equal(s.T(), firstProvider, provider)
 }
 
 func (s *RouterSuite) TestResolve_ConcurrentReads_NoRace() {
-	expectedProvider := &configProviderStub{path: "isr.toml"}
+	expectedProvider := &primaryProviderStub{path: "test-config.toml"}
 
 	warnings, err := router.RouterLoadExtensions(nil, []router.Extension{
-		requiredExtension(router.PortConfig, expectedProvider),
+		requiredExtension(router.PortPrimary, expectedProvider),
 	}, context.Background())
 
 	require.NoError(s.T(), err)
@@ -115,7 +116,7 @@ func (s *RouterSuite) TestResolve_ConcurrentReads_NoRace() {
 		go func() {
 			defer wg.Done()
 
-			provider, resolveErr := router.RouterResolveProvider(router.PortConfig)
+			provider, resolveErr := router.RouterResolveProvider(router.PortPrimary)
 			if resolveErr != nil {
 				errorsCh <- resolveErr
 				return
@@ -140,25 +141,25 @@ func (s *RouterSuite) TestResolve_ConcurrentReads_NoRace() {
 
 func (s *RouterSuite) TestPortContractMismatch_StructuredError() {
 	warnings, err := router.RouterLoadExtensions(nil, []router.Extension{
-		requiredExtension(router.PortConfig, struct{ Name string }{Name: "wrong-provider"}),
+		requiredExtension(router.PortPrimary, struct{ Name string }{Name: "wrong-provider"}),
 	}, context.Background())
 
 	require.NoError(s.T(), err)
 	assert.Empty(s.T(), warnings)
 
-	provider, resolveErr := router.RouterResolveProvider(router.PortConfig)
+	provider, resolveErr := router.RouterResolveProvider(router.PortPrimary)
 	require.NoError(s.T(), resolveErr)
 
-	_, ok := provider.(configContract)
+	_, ok := provider.(primaryContract)
 	require.False(s.T(), ok)
 
 	contractErr := &router.RouterError{
 		Code: router.PortContractMismatch,
-		Port: router.PortConfig,
+		Port: router.PortPrimary,
 	}
 
 	var routerErr *router.RouterError
 	require.ErrorAs(s.T(), contractErr, &routerErr)
 	assert.Equal(s.T(), router.PortContractMismatch, routerErr.Code)
-	assert.Equal(s.T(), router.PortConfig, routerErr.Port)
+	assert.Equal(s.T(), router.PortPrimary, routerErr.Port)
 }

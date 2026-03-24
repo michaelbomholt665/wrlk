@@ -1,10 +1,10 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os/exec"
 	"strings"
-	"encoding/json"
 )
 
 type Package struct {
@@ -42,10 +42,10 @@ func main() {
 				if strings.Contains(imp, "internal/adapters") && !strings.HasPrefix(pkg.ImportPath, imp) && pkg.ImportPath != imp {
 					// Need to make sure it's not importing itself or its parent? Adapters shouldn't import other adapters.
 					// Actually, no adapter should import any other adapter package.
-                    // Let's just flag any import that has internal/adapters
-                    if imp != pkg.ImportPath {
-					    fmt.Printf("VIOLATION: adapter pkg %s imports %s\n", pkg.ImportPath, imp)
-                    }
+					// Let's just flag any import that has internal/adapters
+					if imp != pkg.ImportPath {
+						fmt.Printf("VIOLATION: adapter pkg %s imports %s\n", pkg.ImportPath, imp)
+					}
 				}
 			}
 		}

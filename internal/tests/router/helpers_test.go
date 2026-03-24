@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"policycheck/internal/router"
+	"github.com/michaelbomholt665/wrlk/internal/router"
 
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
