@@ -1,0 +1,25 @@
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
+.isr/staging/*.ndjson
+
+# dist/*
+!dist/scanner.cjs
+node_modules/
+__pycache__/
+.venv/
+isr
+.mypy_cache/
+.qodo/
+.ruff_cache/
+docs/
+# .vscode/
+
+# agents
+.agents
+.cursor
+.antigravity
+.codex
+.gemini
+.claude 
