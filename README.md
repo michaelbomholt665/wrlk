@@ -152,7 +152,7 @@ internal/router/
 ├── router.lock            # Lock file (anti-tampering)
 ├── ext/
 │   ├── doc.go
-│   ├── extensions.go      # Required extensions
+│   ├── extensions.go      # Required/application extensions
 │   ├── optional_extensions.go  # Optional extensions (capabilities that extend without adding dependencies to core)
 │   └── extensions/
 │       └── telemetry/    # Optional telemetry extension

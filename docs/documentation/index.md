@@ -7,7 +7,7 @@ The Router is a zero-dependency dependency broker for Hexagonal Architecture in 
 The Router is a compile-time dependency injection system that:
 
 - **Centralizes port declarations** - All port names are defined in one place (`ports.go`)
-- **Wires adapters explicitly** - Adapters register through the extension system (`extensions.go`)
+- **Wires adapters explicitly** - Adapters register through the extension system (`ext/extensions.go`)
 - **Prevents coupling creep** - Frozen/mutable file split stops accidental modifications to core contracts
 - **Provides lock-free reads** - Uses `atomic.Pointer` for O(1) provider resolution after boot
 
@@ -22,8 +22,8 @@ Without guardrails, AI agents (and developers) tend to:
 
 The Router solves this by making dependency wiring an auditable declaration surface. Cross-adapter coupling requires explicit changes to:
 - [`ports.go`](architecture.md#portsgo--mutable-port-whitelist) - port whitelist
-- [`extensions.go`](architecture.md#extensionsgo--mutable-application-wiring) - application extensions
-- [`optional_extensions.go`](architecture.md#optional_extensionsgo--mutable-optional-layer-wiring) - optional capabilities
+- `internal/router/ext/extensions.go` - application extensions
+- `internal/router/ext/optional_extensions.go` - optional capabilities
 
 ### Secondary Problem Solved: Shared Infrastructure Modification
 
@@ -131,8 +131,9 @@ internal/router/
 ├── MUTABLE (host project wiring)
 │   ├── ports.go              # PortName constants
 │   ├── registry_imports.go   # Port validation + atomic registry
-│   ├── extensions.go         # Application extensions
-│   └── optional_extensions.go # Optional extensions
+│   ├── ext/
+│   │   ├── extensions.go         # Application extensions
+│   │   └── optional_extensions.go # Optional extensions
 │
 ├── FROZEN (never edit directly)
 │   ├── extension.go          # Extension interfaces + RouterLoadExtensions

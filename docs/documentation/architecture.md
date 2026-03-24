@@ -9,8 +9,9 @@ internal/router/
 ├── MUTABLE — host project wiring (4 files)
 │   ├── ports.go              # PortName constants (whitelist)
 │   ├── registry_imports.go   # Imports + RouterValidatePortName + atomic registry declaration
-│   ├── extensions.go         # Application extensions + thin RouterBootExtensions wrapper
-│   └── optional_extensions.go # Optional extensions wired ahead of application extensions
+│   └── ext/
+│       ├── extensions.go         # Application extensions + thin RouterBootExtensions wrapper
+│       └── optional_extensions.go # Optional extensions wired ahead of application extensions
 │
 ├── FROZEN — never edit directly
 │   ├── registry.go           # Atomic publication + RouterResolveProvider
@@ -26,7 +27,7 @@ internal/router/
 | **Is**                                                                | **Is Not**                         |
 | --------------------------------------------------------------------- | ---------------------------------- |
 | Centralized port whitelist (`ports.go`)                               | Dependency injection framework     |
-| Explicit extension wiring (`extensions.go`, `optional_extensions.go`) | Plugin system with dynamic loading |
+| Explicit extension wiring (`ext/extensions.go`, `ext/optional_extensions.go`) | Plugin system with dynamic loading |
 | Compile-time port name safety                                         | Policy enforcement tool            |
 | Boot orchestration + lifecycle guardrails                             | Complexity/style linter            |
 | AI development constraint system                                      | Runtime sandbox                    |
@@ -46,9 +47,9 @@ type PortName string
 // To add a new port: add one line here, then register an implementation
 // in the correct wiring layer. No frozen router files need to change.
 const (
-    PortConfig PortName = "config"
-    PortAuth   PortName = "auth"
-    PortDB     PortName = "db"
+    PortPrimary   PortName = "primary"
+    PortSecondary PortName = "secondary"
+    PortTertiary  PortName = "tertiary"
     // Add new ports here only. One line.
 )
 ```
@@ -66,29 +67,36 @@ package router
 
 import "sync/atomic"
 
-var registry atomic.Pointer[map[PortName]Provider]
+type routerSnapshot struct {
+    providers    map[PortName]Provider
+    restrictions map[PortName][]string
+}
+
+var registry atomic.Pointer[routerSnapshot]
 
 func RouterValidatePortName(port PortName) bool {
     switch port {
-    case PortConfig, PortAuth, PortDB:
+    case PortPrimary, PortSecondary, PortTertiary, PortOptional:
         return true
+    default:
+        return false
     }
-    return false
 }
 ```
 
-### `optional_extensions.go` — MUTABLE (Optional Layer Wiring)
+### `ext/optional_extensions.go` — MUTABLE (Optional Layer Wiring)
 
 ```go
-package router
+package ext
 
 import (
-    "your-project/internal/adapters/telemetry"
+    "your-project/internal/router"
+    "your-project/internal/router/ext/extensions/telemetry"
     // Add optional extension imports here
 )
 
-var optionalExtensions = []Extension{
-    telemetry.Extension(),
+var optionalExtensions = []router.Extension{
+    &telemetry.Extension{},
     // Add one line per optional extension
 }
 ```
@@ -96,28 +104,27 @@ var optionalExtensions = []Extension{
 This file owns the optional extension layer only. Optional extensions boot before
 application extensions and may provide ports consumed during application boot.
 
-### `extensions.go` — MUTABLE (Application Wiring + Thin Wrapper)
+### `ext/extensions.go` — MUTABLE (Application Wiring + Thin Wrapper)
 
 ```go
-package router
+package ext
 
 import (
     "context"
-    "your-project/internal/adapters/config"
-    "your-project/internal/adapters/auth"
-    // Add new extension imports here
+
+    "your-project/internal/router"
 )
 
-var extensions = []Extension{
-    config.Extension(),
-    auth.Extension(),
-    // Add one line per new application extension
+var extensions = []router.Extension{
+    &primaryExtension{},
+    &secondaryExtension{},
+    &tertiaryExtension{},
 }
 
 // RouterBootExtensions wires optional extensions first, then application
 // extensions, and publishes the atomic registry on full success only.
 func RouterBootExtensions(ctx context.Context) ([]error, error) {
-    return RouterLoadExtensions(optionalExtensions, extensions, ctx)
+    return router.RouterLoadExtensions(optionalExtensions, extensions, ctx)
 }
 ```
 
@@ -233,7 +240,7 @@ earlier phase, boot fails under the existing dependency/order semantics.
 
 - Router depends only on `Extension` interface, never concrete adapters.
 - Host supplies `ctx` for timeout/cancellation.
-- Mutable files = `ports.go` + `registry_imports.go` + `optional_extensions.go` + `extensions.go`.
+- Mutable files = `ports.go` + `registry_imports.go` + `ext/optional_extensions.go` + `ext/extensions.go`.
 - Frozen files contain contracts + orchestration + publication logic only.
 - Zero external dependencies.
 - `Registry` handle is the only write surface for extensions.

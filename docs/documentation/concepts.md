@@ -81,16 +81,16 @@ func (e *Extension) Consumes() []router.PortName {
 
 // Provides returns the ports this extension registers.
 func (e *Extension) Provides() []router.PortName {
-    return []router.PortName{router.PortConfig}
+    return []router.PortName{router.PortPrimary}
 }
 
 // RouterProvideRegistration registers the config provider.
 func (e *Extension) RouterProvideRegistration(reg *router.Registry) error {
     provider := &ConfigProvider{ /* ... */ }
-    return reg.RouterRegisterProvider(router.PortConfig, provider)
+    return reg.RouterRegisterProvider(router.PortPrimary, provider)
 }
 
-// Extension returns the extension instance for use in extensions.go.
+// Extension returns the extension instance for use in internal/router/ext/extensions.go.
 func Extension() *Extension {
     return &Extension{}
 }
@@ -115,11 +115,11 @@ type databaseExtension struct{}
 func (e *databaseExtension) Required() bool { return true }
 func (e *databaseExtension) Consumes() []router.PortName { return nil }
 func (e *databaseExtension) Provides() []router.PortName {
-    return []router.PortName{router.PortDB}
+    return []router.PortName{router.PortTertiary}
 }
 func (e *databaseExtension) RouterProvideRegistration(reg *router.Registry) error {
     // Synchronous registration (e.g., struct setup)
-    return reg.RouterRegisterProvider(router.PortDB, &DBProvider{})
+    return reg.RouterRegisterProvider(router.PortTertiary, &DBProvider{})
 }
 
 // RouterProvideAsyncRegistration handles async initialization.
@@ -132,7 +132,7 @@ func (e *databaseExtension) RouterProvideAsyncRegistration(reg *router.Registry,
     
     // Update the provider with the connected instance
     provider := dbProvider{conn: db}
-    return reg.RouterRegisterProvider(router.PortDB, provider)
+    return reg.RouterRegisterProvider(router.PortTertiary, provider)
 }
 ```
 
