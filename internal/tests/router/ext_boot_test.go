@@ -49,6 +49,27 @@ func (s *RouterSuite) TestBuildExtensionBundle_ProvidesMatchesRegistration() {
 	}
 }
 
+// TestBuildExtensionBundle_OptionalExtensionsArePackageLevel verifies that the
+// optional extensions slice is wired through internal/router/ext/extensions/<name>/
+// sub-packages rather than inline types. It asserts the expected count and that the
+// sole optional extension declares and registers router.PortOptional.
+func (s *RouterSuite) TestBuildExtensionBundle_OptionalExtensionsArePackageLevel() {
+	optionalBundle, _ := ext.RouterBuildExtensionBundle()
+
+	require.Len(s.T(), optionalBundle, 1, "exactly one optional router capability extension expected")
+
+	telemetryExt := optionalBundle[0]
+	require.NotNil(s.T(), telemetryExt)
+
+	// Validates Provides() declaration matches what is actually registered.
+	declared := routerPortNamesSorted(telemetryExt.Provides())
+	require.Equal(s.T(), []router.PortName{router.PortOptional}, declared)
+
+	registered, err := router.RouterCollectProvidedPorts(telemetryExt)
+	require.NoError(s.T(), err)
+	assert.Equal(s.T(), declared, routerPortNamesSorted(registered))
+}
+
 func routerPortNamesSorted(ports []router.PortName) []router.PortName {
 	sortedPorts := append([]router.PortName(nil), ports...)
 	sort.Slice(sortedPorts, func(i, j int) bool {

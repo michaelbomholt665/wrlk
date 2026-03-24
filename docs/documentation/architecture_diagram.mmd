@@ -6,8 +6,11 @@ config:
 ---
 flowchart LR
  subgraph ExtLayer["Entry & Wiring (Ext)"]
+        direction TB
         RouterExt["internal/router/ext"]
+        ExtSubExt["internal/router/ext/extensions/telemetry"]
   end
+        RouterExt -- contains --> ExtSubExt
  subgraph RouterCore["Top Layer (Core - Frozen & Blind)"]
         CoreRouter["internal/router"]
   end

@@ -28,3 +28,6 @@ __pycache__/
 
 # scripts
 scripts/
+
+# Docs
+docs/router/
