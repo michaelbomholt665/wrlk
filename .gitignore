@@ -1,6 +1,6 @@
 # Executables
-wrlk
-wrlk.exe
+/wrlk
+/wrlk.exe
 
 # Output & Staging
 .wrlk/staging/*.ndjson
