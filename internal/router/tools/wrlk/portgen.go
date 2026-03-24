@@ -11,10 +11,15 @@ package main
 import (
 	"flag"
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/printer"
+	"go/token"
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
+	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -23,15 +28,6 @@ const (
 	validationRelPath = "internal/router/registry_imports.go"
 	lockRelPath       = "internal/router/router.lock"
 )
-
-// portConstantPattern matches an existing PortName constant declaration.
-var portConstantPattern = regexp.MustCompile(`(?m)^\s*(\w+)\s+PortName\s*=\s*"([^"]+)"`)
-
-// switchCasePattern matches the opening of the RouterValidatePortName switch.
-var switchCasePattern = regexp.MustCompile(`(?m)(switch port \{)`)
-
-// validationCaseLinePattern matches the router whitelist case line.
-var validationCaseLinePattern = regexp.MustCompile(`(?m)^(\s*case\s+)([^:\n]+)(:)\s*$`)
 
 // RouterRunPortgenCommand executes the portgen CLI as a wrlk subcommand.
 func RouterRunPortgenCommand(options globalOptions, args []string, stdout io.Writer, stderr io.Writer) error {
@@ -82,7 +78,7 @@ func RouterParsePortgenFlags(args []string) (portgenAddOptions, error) {
 }
 
 // RouterAddPort is the top-level action: injects the constant, the switch case, and rewrites the lock.
-func RouterAddPort(root, name, value string, dryRun bool, stdout io.Writer) error {
+func RouterAddPort(root, name, value string, dryRun bool, stdout io.Writer) (returnErr error) {
 	portsPath := filepath.Join(root, filepath.FromSlash(portsRelPath))
 	validationPath := filepath.Join(root, filepath.FromSlash(validationRelPath))
 
@@ -96,8 +92,8 @@ func RouterAddPort(root, name, value string, dryRun bool, stdout io.Writer) erro
 		return fmt.Errorf("read validation file: %w", err)
 	}
 
-	if err := RouterCheckPortNotDuplicate(name, portsContent); err != nil {
-		return err
+	if err := RouterVerifyManagedPortFiles(portsContent, validationContent); err != nil {
+		return fmt.Errorf("preflight managed router files: %w", err)
 	}
 
 	updatedPorts, err := RouterInjectPortConstant(portsContent, name, value)
@@ -110,16 +106,34 @@ func RouterAddPort(root, name, value string, dryRun bool, stdout io.Writer) erro
 		return fmt.Errorf("inject validation case: %w", err)
 	}
 
+	if err := RouterVerifyManagedPortFiles(updatedPorts, updatedValidation); err != nil {
+		return fmt.Errorf("verify updated managed router files: %w", err)
+	}
+
 	if dryRun {
 		return RouterWritePortgenDryRunOutput(stdout, name, value, portsRelPath, validationRelPath)
 	}
 
-	if err := RouterWriteSnapshotBeforeMutation(
+	snapshot, err := RouterCaptureSnapshot(
 		root,
 		fmt.Sprintf("wrlk add --name %s --value %s", name, value),
-	); err != nil {
+	)
+	if err != nil {
+		return fmt.Errorf("capture snapshot before portgen: %w", err)
+	}
+
+	if err := RouterWriteSnapshot(root, snapshot); err != nil {
 		return fmt.Errorf("write snapshot before portgen: %w", err)
 	}
+	defer func() {
+		if returnErr == nil {
+			return
+		}
+
+		if restoreErr := RouterRestoreSnapshot(root, snapshot); restoreErr != nil {
+			returnErr = fmt.Errorf("%w (restore snapshot: %v)", returnErr, restoreErr)
+		}
+	}()
 
 	if err := RouterWritePortsFile(portsPath, updatedPorts); err != nil {
 		return err
@@ -140,53 +154,58 @@ func RouterAddPort(root, name, value string, dryRun bool, stdout io.Writer) erro
 	return nil
 }
 
-// RouterCheckPortNotDuplicate returns an error if the port constant name already exists.
-func RouterCheckPortNotDuplicate(name string, portsContent []byte) error {
-	matches := portConstantPattern.FindAllSubmatch(portsContent, -1)
-	for _, match := range matches {
-		if string(match[1]) == name {
-			return fmt.Errorf("wrlk: port %q already declared in ports.go", name)
-		}
-	}
-
-	return nil
-}
-
 // RouterInjectPortConstant appends a new PortName constant into the const block.
 func RouterInjectPortConstant(content []byte, name, value string) ([]byte, error) {
-	src := string(content)
-
-	// Find the closing paren of the const block.
-	closingIdx := strings.LastIndex(src, ")")
-	if closingIdx < 0 {
-		return nil, fmt.Errorf("could not locate const block closing paren in ports.go")
+	fileSet := token.NewFileSet()
+	file, err := parser.ParseFile(fileSet, portsRelPath, content, parser.ParseComments)
+	if err != nil {
+		return nil, fmt.Errorf("parse ports file: %w", err)
 	}
 
-	newLine := fmt.Sprintf("\t// %s is the %s provider port.\n\t%s PortName = %q\n", name, value, name, value)
-	updated := src[:closingIdx] + newLine + src[closingIdx:]
+	constBlock, err := RouterFindPortConstBlock(file)
+	if err != nil {
+		return nil, err
+	}
 
-	return []byte(updated), nil
+	declaredNames, err := RouterDeclaredPortNames(content)
+	if err != nil {
+		return nil, err
+	}
+	if slices.Contains(declaredNames, name) {
+		return nil, fmt.Errorf("wrlk: port %q already declared in ports.go", name)
+	}
+
+	constBlock.Specs = append(constBlock.Specs, &ast.ValueSpec{
+		Doc: &ast.CommentGroup{
+			List: []*ast.Comment{{
+				Text: fmt.Sprintf("// %s is the %s provider port.", name, value),
+			}},
+		},
+		Names: []*ast.Ident{ast.NewIdent(name)},
+		Type:  ast.NewIdent("PortName"),
+		Values: []ast.Expr{
+			&ast.BasicLit{Kind: token.STRING, Value: strconv.Quote(value)},
+		},
+	})
+
+	return RouterPrintGoFile(fileSet, file)
 }
 
 // RouterInjectValidationCase injects a new case into RouterValidatePortName's switch.
 func RouterInjectValidationCase(content []byte, name string) ([]byte, error) {
-	src := string(content)
-
-	// Confirm the expected RouterValidatePortName switch exists before editing.
-	loc := switchCasePattern.FindStringIndex(src)
-	if loc == nil {
-		return nil, fmt.Errorf("could not locate switch port statement in registry_imports.go")
+	fileSet := token.NewFileSet()
+	file, err := parser.ParseFile(fileSet, validationRelPath, content, parser.ParseComments)
+	if err != nil {
+		return nil, fmt.Errorf("parse validation file: %w", err)
 	}
 
-	caseLoc := validationCaseLinePattern.FindStringSubmatchIndex(src)
-	if caseLoc == nil {
-		return nil, fmt.Errorf("could not locate validation case list in registry_imports.go")
+	trueClause, _, err := RouterFindValidationSwitchClauses(file)
+	if err != nil {
+		return nil, err
 	}
+	trueClause.List = append(trueClause.List, ast.NewIdent(name))
 
-	listEnd := caseLoc[5]
-	updated := src[:listEnd] + ", " + name + src[listEnd:]
-
-	return []byte(updated), nil
+	return RouterPrintGoFile(fileSet, file)
 }
 
 // RouterWritePortsFile writes updated ports.go content atomically.
@@ -275,6 +294,233 @@ func RouterWriteAndCloseTempFile(file *os.File, content []byte) error {
 	}
 
 	return nil
+}
+
+// RouterVerifyManagedPortFiles ensures the mutable router surfaces remain in sync.
+func RouterVerifyManagedPortFiles(portsContent []byte, validationContent []byte) error {
+	declaredNames, err := RouterDeclaredPortNames(portsContent)
+	if err != nil {
+		return fmt.Errorf("read declared ports: %w", err)
+	}
+
+	allowedNames, err := RouterAllowedPortNames(validationContent)
+	if err != nil {
+		return fmt.Errorf("read allowed ports: %w", err)
+	}
+
+	missingInValidation := RouterPortSetDifference(declaredNames, allowedNames)
+	if len(missingInValidation) > 0 {
+		return fmt.Errorf(
+			"ports declared in %s but missing from %s: %s",
+			portsRelPath,
+			validationRelPath,
+			strings.Join(missingInValidation, ", "),
+		)
+	}
+
+	extraInValidation := RouterPortSetDifference(allowedNames, declaredNames)
+	if len(extraInValidation) > 0 {
+		return fmt.Errorf(
+			"ports allowed in %s but missing from %s: %s",
+			validationRelPath,
+			portsRelPath,
+			strings.Join(extraInValidation, ", "),
+		)
+	}
+
+	return nil
+}
+
+// RouterDeclaredPortNames extracts the declared PortName constants from ports.go.
+func RouterDeclaredPortNames(content []byte) ([]string, error) {
+	fileSet := token.NewFileSet()
+	file, err := parser.ParseFile(fileSet, portsRelPath, content, parser.ParseComments)
+	if err != nil {
+		return nil, fmt.Errorf("parse ports file: %w", err)
+	}
+
+	constBlock, err := RouterFindPortConstBlock(file)
+	if err != nil {
+		return nil, err
+	}
+
+	names := make([]string, 0, len(constBlock.Specs))
+	for _, spec := range constBlock.Specs {
+		valueSpec, ok := spec.(*ast.ValueSpec)
+		if !ok {
+			return nil, fmt.Errorf("unsupported const spec in %s", portsRelPath)
+		}
+		if !RouterValueSpecHasPortNameType(valueSpec) {
+			continue
+		}
+		for _, ident := range valueSpec.Names {
+			names = append(names, ident.Name)
+		}
+	}
+	if len(names) == 0 {
+		return nil, fmt.Errorf("could not locate PortName constants in %s", portsRelPath)
+	}
+
+	slices.Sort(names)
+	return slices.Compact(names), nil
+}
+
+// RouterAllowedPortNames extracts the allowed port names from RouterValidatePortName.
+func RouterAllowedPortNames(content []byte) ([]string, error) {
+	fileSet := token.NewFileSet()
+	file, err := parser.ParseFile(fileSet, validationRelPath, content, parser.ParseComments)
+	if err != nil {
+		return nil, fmt.Errorf("parse validation file: %w", err)
+	}
+
+	trueClause, _, err := RouterFindValidationSwitchClauses(file)
+	if err != nil {
+		return nil, err
+	}
+
+	names := make([]string, 0, len(trueClause.List))
+	for _, expr := range trueClause.List {
+		ident, ok := expr.(*ast.Ident)
+		if !ok {
+			return nil, fmt.Errorf("unsupported validation case in %s", validationRelPath)
+		}
+		names = append(names, ident.Name)
+	}
+
+	slices.Sort(names)
+	return slices.Compact(names), nil
+}
+
+// RouterFindPortConstBlock returns the managed PortName const block from ports.go.
+func RouterFindPortConstBlock(file *ast.File) (*ast.GenDecl, error) {
+	for _, decl := range file.Decls {
+		genDecl, ok := decl.(*ast.GenDecl)
+		if !ok || genDecl.Tok != token.CONST {
+			continue
+		}
+
+		for _, spec := range genDecl.Specs {
+			valueSpec, ok := spec.(*ast.ValueSpec)
+			if ok && RouterValueSpecHasPortNameType(valueSpec) {
+				return genDecl, nil
+			}
+		}
+	}
+
+	return nil, fmt.Errorf("could not locate PortName const block in %s", portsRelPath)
+}
+
+// RouterFindValidationSwitchClauses returns the managed allow/default clauses.
+func RouterFindValidationSwitchClauses(file *ast.File) (*ast.CaseClause, *ast.CaseClause, error) {
+	for _, decl := range file.Decls {
+		funcDecl, ok := decl.(*ast.FuncDecl)
+		if !ok || funcDecl.Name == nil || funcDecl.Name.Name != "RouterValidatePortName" {
+			continue
+		}
+		if funcDecl.Body == nil || len(funcDecl.Body.List) != 1 {
+			return nil, nil, fmt.Errorf("unsupported RouterValidatePortName body in %s", validationRelPath)
+		}
+
+		switchStmt, ok := funcDecl.Body.List[0].(*ast.SwitchStmt)
+		if !ok {
+			return nil, nil, fmt.Errorf("unsupported RouterValidatePortName shape in %s", validationRelPath)
+		}
+		if switchStmt.Tag == nil {
+			return nil, nil, fmt.Errorf("unsupported RouterValidatePortName switch tag in %s", validationRelPath)
+		}
+		tagIdent, ok := switchStmt.Tag.(*ast.Ident)
+		if !ok || tagIdent.Name != "port" {
+			return nil, nil, fmt.Errorf("unsupported RouterValidatePortName switch tag in %s", validationRelPath)
+		}
+
+		var trueClause *ast.CaseClause
+		var defaultClause *ast.CaseClause
+		for _, stmt := range switchStmt.Body.List {
+			caseClause, ok := stmt.(*ast.CaseClause)
+			if !ok {
+				return nil, nil, fmt.Errorf("unsupported RouterValidatePortName case clause in %s", validationRelPath)
+			}
+
+			switch {
+			case len(caseClause.List) == 0:
+				if defaultClause != nil || !RouterCaseClauseReturnsBool(caseClause, false) {
+					return nil, nil, fmt.Errorf("unsupported RouterValidatePortName default case in %s", validationRelPath)
+				}
+				defaultClause = caseClause
+			default:
+				if trueClause != nil || !RouterCaseClauseReturnsBool(caseClause, true) {
+					return nil, nil, fmt.Errorf("unsupported RouterValidatePortName allow-list case in %s", validationRelPath)
+				}
+				trueClause = caseClause
+			}
+		}
+
+		if trueClause == nil || defaultClause == nil {
+			return nil, nil, fmt.Errorf("unsupported RouterValidatePortName cases in %s", validationRelPath)
+		}
+
+		return trueClause, defaultClause, nil
+	}
+
+	return nil, nil, fmt.Errorf("could not locate RouterValidatePortName in %s", validationRelPath)
+}
+
+// RouterValueSpecHasPortNameType reports whether a const spec is typed as PortName.
+func RouterValueSpecHasPortNameType(valueSpec *ast.ValueSpec) bool {
+	ident, ok := valueSpec.Type.(*ast.Ident)
+	return ok && ident.Name == "PortName"
+}
+
+// RouterCaseClauseReturnsBool reports whether a case clause is a single return of the provided bool value.
+func RouterCaseClauseReturnsBool(caseClause *ast.CaseClause, expected bool) bool {
+	if len(caseClause.Body) != 1 {
+		return false
+	}
+
+	returnStmt, ok := caseClause.Body[0].(*ast.ReturnStmt)
+	if !ok || len(returnStmt.Results) != 1 {
+		return false
+	}
+
+	ident, ok := returnStmt.Results[0].(*ast.Ident)
+	if !ok {
+		return false
+	}
+
+	if expected {
+		return ident.Name == "true"
+	}
+
+	return ident.Name == "false"
+}
+
+// RouterPortSetDifference returns the sorted names present in left but missing from right.
+func RouterPortSetDifference(left []string, right []string) []string {
+	rightSet := make(map[string]struct{}, len(right))
+	for _, name := range right {
+		rightSet[name] = struct{}{}
+	}
+
+	diff := make([]string, 0)
+	for _, name := range left {
+		if _, exists := rightSet[name]; !exists {
+			diff = append(diff, name)
+		}
+	}
+
+	slices.Sort(diff)
+	return slices.Compact(diff)
+}
+
+// RouterPrintGoFile prints one parsed Go file back to source form.
+func RouterPrintGoFile(fileSet *token.FileSet, file *ast.File) ([]byte, error) {
+	var builder strings.Builder
+	config := &printer.Config{Mode: printer.TabIndent | printer.UseSpaces, Tabwidth: 8}
+	if err := config.Fprint(&builder, fileSet, file); err != nil {
+		return nil, fmt.Errorf("print generated Go file: %w", err)
+	}
+
+	return []byte(builder.String()), nil
 }
 
 // RouterWritePortgenDryRunOutput prints dry-run intent to stdout.
