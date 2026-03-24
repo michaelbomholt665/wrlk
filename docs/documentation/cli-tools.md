@@ -37,16 +37,16 @@ go run ./internal/router/tools/wrlk lock verify
 
 ```bash
 $ go run ./internal/router/tools/wrlk lock verify
-router.lock: checksums verified
+router lock verified: internal/router/router.lock
+verified file: internal/router/extension.go
+verified file: internal/router/registry.go
 ```
 
 If there's a mismatch:
 
 ```bash
 $ go run ./internal/router/tools/wrlk lock verify
-error: router.lock: checksum mismatch for internal/router/extension.go
-  expected: f2d4e4c7468cbff6a1d9a8cfbffc546a827f6c2643ddafee4123635594eac897
-  actual:   a1b2c3d4e5f6...
+router lock verify failed: checksum mismatch in internal/router/extension.go
 ```
 
 **When to use:**
@@ -70,7 +70,7 @@ go run ./internal/router/tools/wrlk lock update
 
 ```bash
 $ go run ./internal/router/tools/wrlk lock update
-router.lock: checksums updated
+router lock updated: internal/router/router.lock
 ```
 
 ---
@@ -87,9 +87,9 @@ go run ./internal/router/tools/wrlk lock restore
 
 ```bash
 $ go run ./internal/router/tools/wrlk lock restore
-router.lock: snapshot restored
-restored: internal/router/ports.go
-restored: internal/router/registry_imports.go
+router snapshot restored: internal/router/router.snapshot.json
+restored file: internal/router/ports.go
+restored file: internal/router/registry_imports.go
 ```
 
 ---
@@ -122,14 +122,13 @@ go run ./internal/router/tools/wrlk add --name PortFoo --value foo --dry-run
 2. Adds the validation case to `registry_imports.go`
 3. Writes a local restore snapshot
 4. Updates `router.lock`
+5. Verifies the managed router files stay semantically aligned; if the expected file shape has drifted, the command aborts without writing
 
 **Output:**
 
 ```bash
 $ go run ./internal/router/tools/wrlk add --name PortFoo --value foo
-added: PortFoo PortName = "foo" to internal/router/ports.go
-added: case PortFoo: return true to internal/router/registry_imports.go
-router.lock: checksums updated
+wrlk: added port PortFoo = "foo"
 ```
 
 ---
@@ -161,7 +160,7 @@ internal/router/ext/extensions/telemetry/
 
 **What it updates:**
 - Creates the extension directory
-- Adds the extension to `optional_extensions.go`
+- Adds the extension to `internal/router/ext/optional_extensions.go`
 - Writes a local restore snapshot
 
 **Generated extension code:**
@@ -195,10 +194,6 @@ func (e *Extension) RouterProvideRegistration(reg *router.Registry) error {
     return nil
 }
 
-// Extension returns the extension instance.
-func Extension() *Extension {
-    return &Extension{}
-}
 ```
 
 ---

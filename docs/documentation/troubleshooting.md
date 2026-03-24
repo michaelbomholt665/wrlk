@@ -45,14 +45,14 @@ const (
 )
 ```
 
-2. Verify the extension is in `extensions.go`:
+2. Verify the extension is in `internal/router/ext/extensions.go`:
 ```go
 var extensions = []router.Extension{
     foo.Extension(),  // Make sure this is added
 }
 ```
 
-3. If the extension is optional, verify it's in `optional_extensions.go`:
+3. If the extension is optional, verify it's in `internal/router/ext/optional_extensions.go`:
 ```go
 var optionalExtensions = []router.Extension{
     foo.Extension(),  // For optional capabilities
@@ -74,10 +74,11 @@ Add the case to `RouterValidatePortName` in `registry_imports.go`:
 ```go
 func RouterValidatePortName(port PortName) bool {
     switch port {
-    case PortConfig, PortAuth, PortDB, PortFoo:  // Add PortFoo here
+    case PortPrimary, PortSecondary, PortTertiary, PortOptional, PortFoo:  // Add PortFoo here
         return true
+    default:
+        return false
     }
-    return false
 }
 ```
 
@@ -100,7 +101,7 @@ go run ./internal/router/tools/wrlk add --name PortFoo --value foo
 Check your extension registrations:
 
 ```go
-// In extensions.go
+// In internal/router/ext/extensions.go
 var extensions = []router.Extension{
     foo.Extension(),
     // foo.Extension() is registered twice?
@@ -157,7 +158,7 @@ result := provider.(ports.PrimaryProvider)  // Correct
 
 **Fix:**
 
-Check your extension ordering in `extensions.go`:
+Check your extension ordering in `internal/router/ext/extensions.go`:
 
 ```go
 // WRONG - authExtension consumes "auth" but comes before authProvider
@@ -177,7 +178,7 @@ Or use the `Consumes()` declaration to let the router auto-sort:
 
 ```go
 func (e *authExtension) Consumes() []router.PortName {
-    return []router.PortName{router.PortAuth}  // Router will order automatically
+    return []router.PortName{router.PortPrimary}  // Router will order automatically
 }
 ```
 

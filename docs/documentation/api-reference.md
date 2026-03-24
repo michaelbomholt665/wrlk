@@ -63,7 +63,7 @@ func RouterResolveRestrictedPort(port PortName, consumerID string) (Provider, er
 **Example:**
 
 ```go
-provider, err := router.RouterResolveRestrictedPort(router.PortConfig, "admin-service")
+provider, err := router.RouterResolveRestrictedPort(router.PortPrimary, "admin-service")
 if err != nil {
     return err
 }
@@ -175,11 +175,11 @@ func (r *Registry) RouterRegisterPortRestriction(port PortName, allowedConsumerI
 **Example:**
 
 ```go
-// Restrict config port to specific services
-reg.RouterRegisterPortRestriction(router.PortConfig, []string{"admin-service", "config-service"})
+// Restrict a port to specific services
+reg.RouterRegisterPortRestriction(router.PortPrimary, []string{"admin-service", "config-service"})
 
 // Allow any consumer
-reg.RouterRegisterPortRestriction(router.PortPublic, []string{"Any"})
+reg.RouterRegisterPortRestriction(router.PortOptional, []string{"Any"})
 ```
 
 ---

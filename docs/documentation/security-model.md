@@ -67,8 +67,8 @@ The router provides development workflow constraints specifically designed to gu
 
 - `internal/router/ports.go` - Port constants
 - `internal/router/registry_imports.go` - Port validation
-- `internal/router/extensions.go` - Application extensions
-- `internal/router/optional_extensions.go` - Optional extensions
+- `internal/router/ext/extensions.go` - Application extensions
+- `internal/router/ext/optional_extensions.go` - Optional extensions
 
 **Why this matters:**
 - Wrong path: Edit frozen files (harder, requires understanding consequences)
@@ -95,14 +95,21 @@ If checksums don't match:
 - Clear signal that frozen files were modified
 - Forces intentional decision to update lock
 
-### Data-Only Wiring Files
+### Narrow Wiring Surface
 
-The mutable wiring files (`ports.go`, `extensions.go`, `optional_extensions.go`) are designed to contain only:
+The mutable wiring surface is intentionally narrow:
+
+- `ports.go` should contain port declarations only
+- `registry_imports.go` should contain the whitelist and registry declaration only
+- `ext/optional_extensions.go` should remain wiring-focused
+- `ext/extensions.go` is the application boot composition layer and may also contain host policy checks and compiled-in extension declarations
+
+The main wiring files are designed to stay simple and auditable, typically containing:
 - Constant declarations
 - Slice initialization
 - Import statements
 
-This makes it hard to justify adding business logic to layer declaration files.
+This makes it harder to hide business logic inside the router declaration surface.
 
 ### Explicit Error Catalog
 

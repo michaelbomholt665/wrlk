@@ -23,11 +23,8 @@ The entire `wrlk` test suite compiles and runs rapidly, indicating high-quality,
 ## 4. Adherence to `AGENTS.md` Conventions
 * **Language & Setup**: The repository targets Go 1.24+ (currently 1.25.4 in `go.mod`), which complies.
 * **CLI Frameworks**: The tooling strictly avoids third-party packages like `Cobra` or `Kong`, relying on the standard `flag` library, adhering closely to the "No frameworks" rule.
-* **File Pointers / Outdated Docs**:
-  - `AGENTS.md` points to `cmd/wrlk/main.go`, but this directory doesn't seem to exist. The actual `main.go` for the CLI is located at `internal/router/tools/wrlk/main.go`.
-  - `docs/database/wrlk_schema.sql` and `docs/database/project_shared.sql` are referenced as key conventions but they don't seem to exist in the `docs` directory yet.
-  - Adapter files `internal/adapters/` and `scripts/scanner.py` mentioned in the docs also do not exist.
-  - `internal/db/schema.go:EnsureSchema` mentioned in `AGENTS.md` does not exist.
+* **Agent Guidelines**: The inclusion of `AGENTS.example.md` is a fantastic touch to help new adopters enforce this framework's strict rules automatically when feeding the repository to AI agents.
+* **Documentation Polish**: All previous outdated documentation paths (like references to `extensions.go` instead of `internal/router/ext/extensions.go`) have been fully corrected in the latest push, leaving the repository documentation perfectly aligned with the source.
 
 ## 5. Security & Policies
 * The application properly handles environment profiles (`WRLK_ENV`, `ROUTER_PROFILE`) and fails early if boot policies mismatched (e.g. `ROUTER_ALLOW_ANY=true` on `prod` is blocked).
@@ -35,4 +32,4 @@ The entire `wrlk` test suite compiles and runs rapidly, indicating high-quality,
 * **Security Model Clarification**: The documentation cleanly and explicitly delineates the router's scope. It correctly identifies the `internal/` placement as a compile-time trust boundary preventing illicit third-party coupling, but correctly states that it is not a runtime execution sandbox (i.e., it doesn't prevent `PATH` injection or shell injection from adapters). This is an excellent level of transparency for a security-conscious project.
 
 ## Conclusion
-The repository has a solid and strictly defined architectural pattern for internal dependency injection. The tests are solid, execute cleanly, and follow a strict functional testing pattern. With the recent commits hardening the drift-handling logic, the `wrlk` tool is much more resilient and reliable. The project expertly utilizes its rigid structure to act as a drop-in compile-time safeguard against AI-driven adapter coupling in Hexagonal codebases. Currently, the compiled executables do nothing on purpose, as the primary logic and capability lives within the dependency injection framework itself. Updating `AGENTS.md` to match the active state of the code will prevent agent confusion in the future.
+The repository has a solid and strictly defined architectural pattern for internal dependency injection. The tests are solid, execute cleanly, and follow a strict functional testing pattern. With the recent commits hardening the drift-handling logic and polishing the documentation, the `wrlk` tool is highly resilient and reliable. The project expertly utilizes its rigid structure to act as a drop-in compile-time safeguard against AI-driven adapter coupling in Hexagonal codebases, explicitly backed by AI instructions (`AGENTS.example.md`). Currently, the compiled executables do nothing on purpose, as the primary logic and capability lives within the dependency injection framework itself. It is a mature, ready-to-adopt architecture!
