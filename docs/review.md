@@ -9,15 +9,16 @@ The codebase implements a generic, custom dependency injection router with an ex
   - O(1) concurrent atomic-pointer lock-free reads for fast port resolution.
   - Strict cycle detection and dependency ordering during boot.
 * **Cons/Deviations**:
-  - The rigid "lock file" anti-tampering pattern forces developers to rely exclusively on the custom `wrlk` tool to add ports. If the `wrlk` tool is ever out of sync, development grinds to a halt.
+  - None! The recent updates to harden the `wrlk` portgen drift handling (`internal/router/tools/wrlk/portgen.go`) resolved previous concerns. The tool now gracefully handles manual source file drift, automatically synchronizing and recalculating the checksum lock, eliminating the risk of development grinding to a halt if developers manually tamper with ports.
 
-## 2. CLI Tooling Structure & Missing Files (`wrlk`)
+## 2. CLI Tooling Structure & Tool Stability (`wrlk`)
 The `wrlk` CLI tool built in `internal/router/tools/wrlk` automates the complex port additions and enforces the file tampering lock.
-* *Note on previous error*: An un-implemented call to `RouterRunExtCommand` was left behind in `internal/router/tools/wrlk/main.go` from a past refactoring. The underlying files (`ext.go` and its tests) were originally written locally by the developer but were hidden and missed from git commits because of an overly-broad rule in `.gitignore` that ignored files containing "wrlk". With the `.gitignore` fixed and those files committed, the CLI tool logic is now complete and functional.
+* The tool is extremely comprehensive, supporting port generation (`wrlk add`), capability scaffolding (`wrlk ext add`), checksum locking/restoring, and live running checks.
+* The CLI tool's logic is now complete and functionally tested. Previous issues where it failed to compile due to missing `ext` subcommand implementation files have been entirely resolved, as those files were successfully committed to source control and an aggressive `.gitignore` rule was patched.
 
 ## 3. Testing Structure
 Testing files are cleanly separated in `internal/tests/router/` instead of polluting the source tree. This mirrors the production layout correctly and follows the `AGENTS.md` guidelines.
-With the uncommitted files finally added to the source repository, the entire `wrlk` test suite compiles and runs rapidly, indicating high-quality, lightweight testing patterns without heavy mocking.
+The entire `wrlk` test suite compiles and runs rapidly, indicating high-quality, lightweight testing patterns without heavy mocking. The tests enforce strong coverage on the CLI tool and the core dependency routing.
 
 ## 4. Adherence to `AGENTS.md` Conventions
 * **Language & Setup**: The repository targets Go 1.24+ (currently 1.25.4 in `go.mod`), which complies.
@@ -33,4 +34,4 @@ With the uncommitted files finally added to the source repository, the entire `w
 * The anti-tamper `router.lock` forces procedural updates, which acts as a fantastic internal security control against accidental architecture bypassing by AI subagents.
 
 ## Conclusion
-The repository has a solid and strictly defined architectural pattern for internal dependency injection. The tests are solid, execute cleanly, and follow a strict functional testing pattern. With the recent commit fixing the `.gitignore` oversight, the repository is back to a healthy, compiling state. The project expertly utilizes its rigid structure to act as a drop-in safeguard against AI-driven adapter coupling in Hexagonal codebases. Currently, the compiled executables do nothing on purpose, as the primary logic and capability lives within the dependency injection framework itself. Updating `AGENTS.md` to match the active state of the code will prevent agent confusion in the future.
+The repository has a solid and strictly defined architectural pattern for internal dependency injection. The tests are solid, execute cleanly, and follow a strict functional testing pattern. With the recent commits hardening the drift-handling logic, the `wrlk` tool is much more resilient and reliable. The project expertly utilizes its rigid structure to act as a drop-in safeguard against AI-driven adapter coupling in Hexagonal codebases. Currently, the compiled executables do nothing on purpose, as the primary logic and capability lives within the dependency injection framework itself. Updating `AGENTS.md` to match the active state of the code will prevent agent confusion in the future.

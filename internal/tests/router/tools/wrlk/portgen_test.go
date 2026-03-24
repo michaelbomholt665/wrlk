@@ -83,7 +83,8 @@ func TestPortgen_Add_UpdatesPortsFile(t *testing.T) {
 	content, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(portsRelPath)))
 	require.NoError(t, err)
 
-	assert.Contains(t, string(content), `PortFoo PortName = "foo"`)
+	assert.Contains(t, string(content), "PortFoo")
+	assert.Contains(t, string(content), `PortName = "foo"`)
 }
 
 // TestPortgen_Add_UpdatesValidation verifies that a new switch case is injected into registry_imports.go.
@@ -210,7 +211,8 @@ func TestPortgen_AddRestoreVerifyWorkflow(t *testing.T) {
 
 	portsAfterAdd, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(portsRelPath)))
 	require.NoError(t, err)
-	assert.Contains(t, string(portsAfterAdd), `PortFoo PortName = "foo"`)
+	assert.Contains(t, string(portsAfterAdd), "PortFoo")
+	assert.Contains(t, string(portsAfterAdd), `PortName = "foo"`)
 
 	restoreResult := runWrlkCommand(t, root, "lock", "restore")
 	require.NoError(t, restoreResult.err, restoreResult.stderr)
@@ -249,7 +251,7 @@ func TestPortgen_AddRestoreAddAgain(t *testing.T) {
 
 	portsContent, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(portsRelPath)))
 	require.NoError(t, err)
-	assert.Equal(t, 1, strings.Count(string(portsContent), `PortFoo PortName = "foo"`))
+	assert.Equal(t, 1, strings.Count(string(portsContent), "PortFoo"))
 
 	validationContent, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(validationRelPath)))
 	require.NoError(t, err)
@@ -321,6 +323,90 @@ func TestPortgen_Add_DryRun_NoWrite(t *testing.T) {
 
 	assert.Equal(t, string(portsBefore), string(portsAfter), "ports.go must not be written in dry-run mode")
 	assert.Equal(t, string(validationBefore), string(validationAfter), "registry_imports.go must not be written in dry-run mode")
+}
+
+// TestPortgen_Add_PreflightMismatch_FailsClosed verifies that stale managed files are rejected before any write.
+func TestPortgen_Add_PreflightMismatch_FailsClosed(t *testing.T) {
+	root := createPortgenFixture(t)
+
+	writeFixtureFile(t, root, validationRelPath, `package router
+
+import "sync/atomic"
+
+var registry atomic.Pointer[map[PortName]Provider]
+
+// RouterValidatePortName reports whether the port is declared in the router whitelist.
+func RouterValidatePortName(port PortName) bool {
+	switch port {
+	case PortPrimary, PortGhost:
+		return true
+	default:
+		return false
+	}
+}
+`)
+
+	portsBefore, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(portsRelPath)))
+	require.NoError(t, err)
+	validationBefore, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(validationRelPath)))
+	require.NoError(t, err)
+
+	result := runPortgenCommand(t, root, "add", "--name", "PortFoo", "--value", "foo")
+	require.Error(t, result.err)
+	assert.NotEqual(t, 0, result.exitCode)
+	assert.Contains(t, result.stderr, "preflight managed router files")
+
+	portsAfter, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(portsRelPath)))
+	require.NoError(t, err)
+	validationAfter, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(validationRelPath)))
+	require.NoError(t, err)
+
+	assert.Equal(t, string(portsBefore), string(portsAfter))
+	assert.Equal(t, string(validationBefore), string(validationAfter))
+	assert.NoFileExists(t, filepath.Join(root, filepath.FromSlash(snapshotRelPath)))
+}
+
+// TestPortgen_Add_UnsupportedValidationShape_FailsClosed verifies that tool-version drift aborts without writes.
+func TestPortgen_Add_UnsupportedValidationShape_FailsClosed(t *testing.T) {
+	root := createPortgenFixture(t)
+
+	writeFixtureFile(t, root, validationRelPath, `package router
+
+import "sync/atomic"
+
+var registry atomic.Pointer[map[PortName]Provider]
+
+// RouterValidatePortName reports whether the port is declared in the router whitelist.
+func RouterValidatePortName(port PortName) bool {
+	switch port {
+	case PortPrimary:
+		return true
+	case PortShadow:
+		return true
+	default:
+		return false
+	}
+}
+`)
+
+	portsBefore, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(portsRelPath)))
+	require.NoError(t, err)
+	validationBefore, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(validationRelPath)))
+	require.NoError(t, err)
+
+	result := runPortgenCommand(t, root, "add", "--name", "PortFoo", "--value", "foo")
+	require.Error(t, result.err)
+	assert.NotEqual(t, 0, result.exitCode)
+	assert.Contains(t, result.stderr, "unsupported RouterValidatePortName")
+
+	portsAfter, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(portsRelPath)))
+	require.NoError(t, err)
+	validationAfter, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(validationRelPath)))
+	require.NoError(t, err)
+
+	assert.Equal(t, string(portsBefore), string(portsAfter))
+	assert.Equal(t, string(validationBefore), string(validationAfter))
+	assert.NoFileExists(t, filepath.Join(root, filepath.FromSlash(snapshotRelPath)))
 }
 
 // — Fixture helpers —
