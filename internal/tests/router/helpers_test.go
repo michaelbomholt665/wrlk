@@ -2,6 +2,7 @@ package router_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -16,6 +17,9 @@ type MockExtension struct {
 
 	BootError         error
 	AsyncDelay        time.Duration
+	RollbackCalls     *[]string
+	RollbackError     error
+	RollbackName      string
 	IsRequired        bool
 	ConsumedPorts     []router.PortName
 	ProvidedPorts     []router.PortName
@@ -57,6 +61,30 @@ func (m *MockExtension) RouterProvideRegistration(reg *router.Registry) error {
 	}
 
 	return reg.RouterRegisterProvider(m.RegistersPort, m.RegistersProvider)
+}
+
+func (m *MockExtension) RouterRollbackBoot(_ context.Context) error {
+	if m.RollbackCalls != nil {
+		*m.RollbackCalls = append(*m.RollbackCalls, m.rollbackLabel())
+	}
+
+	if m.RollbackError != nil {
+		return m.RollbackError
+	}
+
+	return nil
+}
+
+func (m *MockExtension) rollbackLabel() string {
+	if m.RollbackName != "" {
+		return m.RollbackName
+	}
+
+	if m.RegistersPort != "" {
+		return string(m.RegistersPort)
+	}
+
+	return fmt.Sprintf("%T", m)
 }
 
 type MockAsyncExtension struct {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 )
 
 // RouterErrorCode is the stable structured router error code.
@@ -85,6 +86,33 @@ type AsyncExtension interface {
 	RouterProvideAsyncRegistration(reg *Registry, ctx context.Context) error
 }
 
+// RollbackExtension declares an optional boot rollback hook for aborted startup attempts.
+type RollbackExtension interface {
+	Extension
+	RouterRollbackBoot(ctx context.Context) error
+}
+
+type routerBootAbort struct {
+	err                error
+	currentRollbackExt Extension
+}
+
+func (e *routerBootAbort) Error() string {
+	if e == nil || e.err == nil {
+		return ""
+	}
+
+	return e.err.Error()
+}
+
+func (e *routerBootAbort) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+
+	return e.err
+}
+
 // ErrorFormattingExtension declares a custom error formatter.
 type ErrorFormattingExtension interface {
 	Extension
@@ -157,14 +185,16 @@ func RouterLoadExtensions(
 	localRestrictions := make(map[PortName][]string)
 	localRegistry := &Registry{ports: &localPorts, restrictions: &localRestrictions}
 	warnings := make([]error, 0)
+	startedRollbackExts := make([]RollbackExtension, 0)
 
 	optionalWarnings, err := routerLoadExtensionLayer(
 		localRegistry,
 		optionalExts,
 		ctx,
+		&startedRollbackExts,
 	)
 	if err != nil {
-		return nil, err
+		return nil, routerRollbackLoadFailure(ctx, err, startedRollbackExts)
 	}
 	warnings = append(warnings, optionalWarnings...)
 
@@ -172,9 +202,10 @@ func RouterLoadExtensions(
 		localRegistry,
 		exts,
 		ctx,
+		&startedRollbackExts,
 	)
 	if err != nil {
-		return nil, err
+		return nil, routerRollbackLoadFailure(ctx, err, startedRollbackExts)
 	}
 	warnings = append(warnings, applicationWarnings...)
 
@@ -184,7 +215,10 @@ func RouterLoadExtensions(
 	}
 
 	if !registry.CompareAndSwap(nil, snapshot) {
-		return nil, &RouterError{Code: MultipleInitializations}
+		return nil, routerCombineRollbackFailure(
+			&RouterError{Code: MultipleInitializations},
+			routerRollbackExtensions(ctx, nil, startedRollbackExts),
+		)
 	}
 
 	return warnings, nil
@@ -195,6 +229,7 @@ func routerLoadExtensionLayer(
 	registryHandle *Registry,
 	extensions []Extension,
 	ctx context.Context,
+	startedRollbackExts *[]RollbackExtension,
 ) ([]error, error) {
 	warnings := make([]error, 0)
 
@@ -212,6 +247,7 @@ func routerLoadExtensionLayer(
 			registryHandle,
 			ext,
 			ctx,
+			startedRollbackExts,
 		)
 		if err != nil {
 			return nil, err
@@ -227,40 +263,77 @@ func routerHandleExtensionRegistration(
 	registryHandle *Registry,
 	ext Extension,
 	ctx context.Context,
+	startedRollbackExts *[]RollbackExtension,
 ) ([]error, error) {
 	if ext == nil {
 		return nil, nil
 	}
 
-	if err := ext.RouterProvideRegistration(registryHandle); err != nil {
-		return routerHandleExtensionFailure(ext, err)
+	stagedRegistry := routerCloneRegistry(registryHandle)
+
+	if err := ext.RouterProvideRegistration(stagedRegistry); err != nil {
+		return routerHandleExtensionFailure(
+			ctx,
+			ext,
+			err,
+			true,
+		)
 	}
 
 	asyncExt, ok := ext.(AsyncExtension)
-	if !ok {
-		return nil, nil
+	if ok {
+		if err := asyncExt.RouterProvideAsyncRegistration(stagedRegistry, ctx); err != nil {
+			asyncErr := routerClassifyAsyncError(err)
+			if asyncErr != nil {
+				return nil, &routerBootAbort{
+					err:                asyncErr,
+					currentRollbackExt: routerRollbackExtensionForAttempt(ext, true),
+				}
+			}
+
+			return routerHandleExtensionFailure(
+				ctx,
+				ext,
+				err,
+				true,
+			)
+		}
 	}
 
-	if err := asyncExt.RouterProvideAsyncRegistration(registryHandle, ctx); err != nil {
-		asyncErr := routerClassifyAsyncError(err)
-		if asyncErr != nil {
-			return nil, asyncErr
-		}
+	routerCommitRegistry(registryHandle, stagedRegistry)
 
-		return routerHandleExtensionFailure(ext, err)
+	if rollbackExt, ok := ext.(RollbackExtension); ok && startedRollbackExts != nil {
+		*startedRollbackExts = append(*startedRollbackExts, rollbackExt)
 	}
 
 	return nil, nil
 }
 
 // routerHandleExtensionFailure classifies one extension failure as warning or fatal error.
-func routerHandleExtensionFailure(ext Extension, err error) ([]error, error) {
+func routerHandleExtensionFailure(
+	ctx context.Context,
+	ext Extension,
+	err error,
+	currentAttemptStarted bool,
+) ([]error, error) {
 	classifiedErr := routerClassifyExtensionError(ext, err)
 	if ext.Required() {
-		return nil, classifiedErr
+		return nil, &routerBootAbort{
+			err:                classifiedErr,
+			currentRollbackExt: routerRollbackExtensionForAttempt(ext, currentAttemptStarted),
+		}
 	}
 
-	return []error{classifiedErr}, nil
+	return []error{
+		routerCombineRollbackFailure(
+			classifiedErr,
+			routerRollbackExtensions(
+				ctx,
+				routerRollbackExtensionForAttempt(ext, currentAttemptStarted),
+				nil,
+			),
+		),
+	}, nil
 }
 
 // routerCheckExtensionDependencies verifies an extension's declared boot dependencies.
@@ -335,6 +408,113 @@ func routerClassifyExtensionError(ext Extension, err error) error {
 		Code: code,
 		Err:  formattedErr,
 	}
+}
+
+func routerCloneRegistry(registryHandle *Registry) *Registry {
+	stagedPorts := maps.Clone(*registryHandle.ports)
+	stagedRestrictions := make(map[PortName][]string, len(*registryHandle.restrictions))
+	for port, allowedConsumerIDs := range *registryHandle.restrictions {
+		stagedRestrictions[port] = append([]string(nil), allowedConsumerIDs...)
+	}
+
+	return &Registry{
+		ports:        &stagedPorts,
+		restrictions: &stagedRestrictions,
+	}
+}
+
+func routerCommitRegistry(dst *Registry, src *Registry) {
+	*dst.ports = *src.ports
+	*dst.restrictions = *src.restrictions
+}
+
+func routerRollbackExtensionForAttempt(
+	ext Extension,
+	currentAttemptStarted bool,
+) Extension {
+	if !currentAttemptStarted {
+		return nil
+	}
+
+	return ext
+}
+
+func routerRollbackExtensions(
+	ctx context.Context,
+	currentRollbackExt Extension,
+	startedRollbackExts []RollbackExtension,
+) error {
+	rollbackExts := make([]RollbackExtension, 0, len(startedRollbackExts)+1)
+
+	if rollbackExt, ok := currentRollbackExt.(RollbackExtension); ok {
+		rollbackExts = append(rollbackExts, rollbackExt)
+	}
+
+	for index := len(startedRollbackExts) - 1; index >= 0; index-- {
+		rollbackExts = append(rollbackExts, startedRollbackExts[index])
+	}
+
+	if len(rollbackExts) == 0 {
+		return nil
+	}
+
+	rollbackErrs := make([]error, 0)
+	for _, rollbackExt := range rollbackExts {
+		if err := rollbackExt.RouterRollbackBoot(ctx); err != nil {
+			rollbackErrs = append(
+				rollbackErrs,
+				fmt.Errorf("rollback boot for %T: %w", rollbackExt, err),
+			)
+		}
+	}
+
+	return errors.Join(rollbackErrs...)
+}
+
+func routerRollbackLoadFailure(
+	ctx context.Context,
+	loadErr error,
+	startedRollbackExts []RollbackExtension,
+) error {
+	var abortErr *routerBootAbort
+	if errors.As(loadErr, &abortErr) {
+		return routerCombineRollbackFailure(
+			abortErr.err,
+			routerRollbackExtensions(ctx, abortErr.currentRollbackExt, startedRollbackExts),
+		)
+	}
+
+	return routerCombineRollbackFailure(
+		loadErr,
+		routerRollbackExtensions(ctx, nil, startedRollbackExts),
+	)
+}
+
+func routerCombineRollbackFailure(primaryErr error, rollbackErr error) error {
+	if primaryErr == nil {
+		return rollbackErr
+	}
+
+	if rollbackErr == nil {
+		return primaryErr
+	}
+
+	var routerErr *RouterError
+	if errors.As(primaryErr, &routerErr) {
+		combinedErr := rollbackErr
+		if routerErr.Err != nil {
+			combinedErr = errors.Join(routerErr.Err, rollbackErr)
+		}
+
+		return &RouterError{
+			Code:       routerErr.Code,
+			Port:       routerErr.Port,
+			ConsumerID: routerErr.ConsumerID,
+			Err:        combinedErr,
+		}
+	}
+
+	return errors.Join(primaryErr, rollbackErr)
 }
 
 // routerFormatExtensionError applies any extension-specific error formatter.

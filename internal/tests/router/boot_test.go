@@ -490,3 +490,187 @@ func (s *RouterSuite) TestBoot_OptionalLayer_NoExtensions_BootStillSucceeds() {
 	require.NoError(s.T(), resolveErr)
 	assert.NotNil(s.T(), provider)
 }
+
+func (s *RouterSuite) TestBoot_RollbackCalledOnRequiredFailure() {
+	rollbackCalls := make([]string, 0)
+	warnings, err := router.RouterLoadExtensions(nil, []router.Extension{
+		&MockExtension{
+			IsRequired:        true,
+			RegistersPort:     router.PortPrimary,
+			RegistersProvider: &primaryProviderStub{path: "test-config.toml"},
+			RollbackCalls:     &rollbackCalls,
+			RollbackName:      "primary",
+		},
+		&MockExtension{
+			IsRequired:    true,
+			BootError:     errors.New("required boot failed"),
+			RollbackCalls: &rollbackCalls,
+			RollbackName:  "failing",
+		},
+	}, context.Background())
+
+	require.Error(s.T(), err)
+	assert.Nil(s.T(), warnings)
+	requireRouterErrorCode(s.T(), err, router.RequiredExtensionFailed)
+	assert.Equal(s.T(), []string{"failing", "primary"}, rollbackCalls)
+	assertRegistryNotBooted(s.T(), router.PortPrimary)
+}
+
+func (s *RouterSuite) TestBoot_RollbackCalledOnAsyncTimeout() {
+	rollbackCalls := make([]string, 0)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+
+	warnings, err := router.RouterLoadExtensions(nil, []router.Extension{
+		&MockExtension{
+			IsRequired:        true,
+			RegistersPort:     router.PortPrimary,
+			RegistersProvider: &primaryProviderStub{path: "test-config.toml"},
+			RollbackCalls:     &rollbackCalls,
+			RollbackName:      "primary",
+		},
+		&MockAsyncExtension{
+			MockExtension: MockExtension{
+				IsRequired:    true,
+				AsyncDelay:    100 * time.Millisecond,
+				RollbackCalls: &rollbackCalls,
+				RollbackName:  "async",
+			},
+		},
+	}, ctx)
+
+	require.Error(s.T(), err)
+	assert.Nil(s.T(), warnings)
+	requireRouterErrorCode(s.T(), err, router.AsyncInitTimeout)
+	assert.Equal(s.T(), []string{"async", "primary"}, rollbackCalls)
+	assertRegistryNotBooted(s.T(), router.PortPrimary)
+}
+
+func (s *RouterSuite) TestBoot_RollbackOrder_ReverseStartupOrder() {
+	rollbackCalls := make([]string, 0)
+	warnings, err := router.RouterLoadExtensions(nil, []router.Extension{
+		&MockExtension{
+			IsRequired:        true,
+			RegistersPort:     router.PortPrimary,
+			RegistersProvider: &primaryProviderStub{path: "first.toml"},
+			RollbackCalls:     &rollbackCalls,
+			RollbackName:      "first",
+		},
+		&MockExtension{
+			IsRequired:        true,
+			RegistersPort:     router.PortSecondary,
+			RegistersProvider: struct{ Name string }{Name: "second"},
+			RollbackCalls:     &rollbackCalls,
+			RollbackName:      "second",
+		},
+		&MockExtension{
+			IsRequired:    true,
+			BootError:     errors.New("boom"),
+			RollbackCalls: &rollbackCalls,
+			RollbackName:  "third",
+		},
+	}, context.Background())
+
+	require.Error(s.T(), err)
+	assert.Nil(s.T(), warnings)
+	requireRouterErrorCode(s.T(), err, router.RequiredExtensionFailed)
+	assert.Equal(s.T(), []string{"third", "second", "first"}, rollbackCalls)
+}
+
+func (s *RouterSuite) TestBoot_RollbackErrorsDoNotReplacePrimaryFailure() {
+	rollbackCalls := make([]string, 0)
+	warnings, err := router.RouterLoadExtensions(nil, []router.Extension{
+		&MockExtension{
+			IsRequired:        true,
+			RegistersPort:     router.PortPrimary,
+			RegistersProvider: &primaryProviderStub{path: "first.toml"},
+			RollbackCalls:     &rollbackCalls,
+			RollbackName:      "primary",
+			RollbackError:     errors.New("cleanup failed"),
+		},
+		&MockExtension{
+			IsRequired:    true,
+			BootError:     errors.New("boot failed"),
+			RollbackCalls: &rollbackCalls,
+			RollbackName:  "failing",
+			RollbackError: errors.New("failing cleanup failed"),
+		},
+	}, context.Background())
+
+	require.Error(s.T(), err)
+	assert.Nil(s.T(), warnings)
+	requireRouterErrorCode(s.T(), err, router.RequiredExtensionFailed)
+	assert.ErrorContains(s.T(), err, "boot failed")
+	assert.ErrorContains(s.T(), err, "cleanup failed")
+	assert.Equal(s.T(), []string{"failing", "primary"}, rollbackCalls)
+}
+
+func (s *RouterSuite) TestBoot_RollbackCalledOnCompareAndSwapLoss() {
+	rollbackCalls := make([]string, 0)
+	firstBootHasStarted := make(chan struct{})
+	continueBoot := make(chan struct{})
+
+	losingBoot := &casRaceExtension{
+		MockExtension: MockExtension{
+			IsRequired:        true,
+			RegistersPort:     router.PortPrimary,
+			RegistersProvider: &primaryProviderStub{path: "first.toml"},
+			RollbackCalls:     &rollbackCalls,
+			RollbackName:      "losing-boot",
+		},
+		beforeAsync: func() {
+			close(firstBootHasStarted)
+			<-continueBoot
+		},
+	}
+
+	errs := make(chan error, 2)
+
+	go func() {
+		_, err := router.RouterLoadExtensions(nil, []router.Extension{losingBoot}, context.Background())
+		errs <- err
+	}()
+
+	<-firstBootHasStarted
+
+	go func() {
+		_, err := router.RouterLoadExtensions(nil, []router.Extension{
+			&MockExtension{
+				IsRequired:        true,
+				RegistersPort:     router.PortPrimary,
+				RegistersProvider: &primaryProviderStub{path: "winner.toml"},
+			},
+		}, context.Background())
+		errs <- err
+	}()
+
+	secondErr := <-errs
+	close(continueBoot)
+	firstErr := <-errs
+
+	require.NoError(s.T(), secondErr)
+	require.Error(s.T(), firstErr)
+	requireRouterErrorCode(s.T(), firstErr, router.MultipleInitializations)
+	assert.Equal(s.T(), []string{"losing-boot"}, rollbackCalls)
+}
+
+type casRaceExtension struct {
+	MockExtension
+	beforeAsync func()
+}
+
+func (m *casRaceExtension) RouterProvideAsyncRegistration(
+	_ *router.Registry,
+	ctx context.Context,
+) error {
+	if m.beforeAsync != nil {
+		m.beforeAsync()
+	}
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+		return nil
+	}
+}

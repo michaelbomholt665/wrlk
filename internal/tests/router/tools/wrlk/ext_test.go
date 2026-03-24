@@ -221,7 +221,6 @@ func TestExtAdd_WritesSnapshot(t *testing.T) {
 	assert.True(t, foundOptional, "snapshot must include optional_extensions.go")
 }
 
-
 // TestExtAdd_HelpFlag_PrintsUsage verifies that --help prints the ext add usage text.
 func TestExtAdd_HelpFlag_PrintsUsage(t *testing.T) {
 	result := runWrlkCommand(t, repositoryRoot(t), "ext", "add", "--help")
