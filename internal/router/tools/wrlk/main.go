@@ -108,6 +108,8 @@ func RouterDispatchCLICommand(
 		return RouterRunLiveCommand(options, args[1:], stdout, stderr)
 	case "add":
 		return RouterRunPortgenCommand(options, args[1:], stdout, stderr)
+	case "ext":
+		return RouterRunExtCommand(options, args[1:], stdout, stderr)
 	case "guide":
 		return RouterWriteGuide(stdout)
 	default:
