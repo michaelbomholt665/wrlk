@@ -31,7 +31,9 @@
 // 2. DEFINE: Create the interface in the domain-specific package (internal/ports).
 // 3. IMPLEMENT: Create an Extension struct in internal/ext.
 // 4. REGISTER: Use reg.RouterRegisterProvider(router.PortName, implementation).
-// 5. WIRE: Add the Extension instance to the 'extensions' slice in internal/ext/extensions.go.
+// 5. WIRE:
+//   - Optional capability extension: `go run ./internal/router/tools/wrlk ext add --name <ExtensionName>`
+//   - Required application extension: `go run ./internal/router/tools/wrlk ext app add --name <ExtensionName>`
 //
 // ### 5. PERFORMANCE INVARIANT
 // This router is optimized for <1ns resolution.

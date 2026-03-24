@@ -49,6 +49,12 @@ func (s *RouterSuite) TestBuildExtensionBundle_ProvidesMatchesRegistration() {
 	}
 }
 
+func (s *RouterSuite) TestBuildExtensionBundle_ApplicationExtensionsStartEmpty() {
+	_, applicationBundle := ext.RouterBuildExtensionBundle()
+
+	assert.Empty(s.T(), applicationBundle)
+}
+
 // TestBuildExtensionBundle_OptionalExtensionsArePackageLevel verifies that the
 // optional extensions slice is wired through internal/router/ext/extensions/<name>/
 // sub-packages rather than inline types. It asserts the expected count and that the

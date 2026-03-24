@@ -45,17 +45,17 @@ const (
 )
 ```
 
-2. Verify the extension is in `internal/router/ext/extensions.go`:
+2. Verify the required extension is in `internal/router/ext/extensions.go`:
 ```go
 var extensions = []router.Extension{
-    foo.Extension(),  // Make sure this is added
+    &foo.Extension{},  // Or the concrete extension you wired
 }
 ```
 
 3. If the extension is optional, verify it's in `internal/router/ext/optional_extensions.go`:
 ```go
 var optionalExtensions = []router.Extension{
-    foo.Extension(),  // For optional capabilities
+    &foo.Extension{},  // For optional capabilities
 }
 ```
 
@@ -158,10 +158,14 @@ result := provider.(ports.PrimaryProvider)  // Correct
 
 **Fix:**
 
-Check your extension ordering in `internal/router/ext/extensions.go`:
+Check ordering in the correct slice:
+- `internal/router/ext/extensions.go` for required application extensions
+- `internal/router/ext/optional_extensions.go` for optional capability extensions
+
+Example:
 
 ```go
-// WRONG - authExtension consumes "auth" but comes before authProvider
+// WRONG - consumer comes before provider
 var extensions = []router.Extension{
     &authExtension{},     // Requires "auth" - too early!
     &authProvider{},      // Provides "auth"
@@ -308,9 +312,9 @@ go run ./internal/router/tools/wrlk lock restore
 
 ### When should I use optional extensions vs application extensions?
 
-**Application extensions** are required for the application to boot. If they fail, boot fails with a fatal error.
+**Application extensions** are required for the application to boot. They belong in `extensions.go`. If they fail, boot fails with a fatal error.
 
-**Optional extensions** are capabilities that extend the router. If they fail, boot continues with warnings.
+**Optional extensions** are capabilities that extend the router. They belong in `optional_extensions.go`. If they fail, boot continues with warnings.
 
 Use optional extensions for:
 - Telemetry and monitoring
@@ -321,6 +325,12 @@ Use optional extensions for:
 Use application extensions for:
 - Core services (database, config, auth)
 - Services required for the application to function
+
+Scaffold them with:
+
+```bash
+go run ./internal/router/tools/wrlk ext app add --name Billing
+```
 
 ---
 

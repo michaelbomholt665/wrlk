@@ -228,6 +228,19 @@ type Extension interface {
 
 ---
 
+### RollbackExtension Interface
+
+```go
+type RollbackExtension interface {
+    Extension
+    RouterRollbackBoot(ctx context.Context) error
+}
+```
+
+Used only for boot rollback when startup aborts after work has already begun.
+
+---
+
 ## Error Codes
 
 | Code                        | Description                        | When Raised                                    |

@@ -10,8 +10,8 @@ internal/router/
 │   ├── ports.go              # PortName constants (whitelist)
 │   ├── registry_imports.go   # Imports + RouterValidatePortName + atomic registry declaration
 │   └── ext/
-│       ├── extensions.go         # Application extensions + thin RouterBootExtensions wrapper
-│       └── optional_extensions.go # Optional extensions wired ahead of application extensions
+│       ├── extensions.go         # Required application extensions + thin RouterBootExtensions wrapper
+│       └── optional_extensions.go # Optional capability extensions wired ahead of application extensions
 │
 ├── FROZEN — never edit directly
 │   ├── registry.go           # Atomic publication + RouterResolveProvider
@@ -104,7 +104,7 @@ var optionalExtensions = []router.Extension{
 This file owns the optional extension layer only. Optional extensions boot before
 application extensions and may provide ports consumed during application boot.
 
-### `ext/extensions.go` — MUTABLE (Application Wiring + Thin Wrapper)
+### `ext/extensions.go` — MUTABLE (Required Application Wiring + Thin Wrapper)
 
 ```go
 package ext
@@ -116,9 +116,8 @@ import (
 )
 
 var extensions = []router.Extension{
-    &primaryExtension{},
-    &secondaryExtension{},
-    &tertiaryExtension{},
+    // App-owned required extensions only.
+    // Generated with `wrlk ext app add` or maintained manually.
 }
 
 // RouterBootExtensions wires optional extensions first, then application
@@ -189,8 +188,9 @@ sequenceDiagram
 - `ctx` is required so async extension boot respects host timeout/cancellation policy
 - Hardcoding `context.Background()` inside the router is forbidden
 - A deadlocked or stalled async extension must be able to fail startup through host timeout policy
-- Concurrent boot attempts are a **host programming error** and are unsupported
+- Concurrent boot attempts are a host programming error
 - Repeated boot after successful initialization returns `MultipleInitializations`
+- Failed boot attempts roll back boot-only work for extensions that opt into `RollbackExtension`
 
 ## Atomic Publication Model (Model A)
 
@@ -222,8 +222,8 @@ This preserves the zero-contention post-boot read path without introducing a sec
 
 The router supports two distinct extension layers:
 
-- **Primary extension path** - for normal application adapters
-- **Separate optional extension path** - for router-extending capabilities (telemetry, logging, metrics)
+- **Application extension path** - for required application adapters in `ext/extensions.go`
+- **Optional extension path** - for router-extending capabilities in `ext/optional_extensions.go`
 
 These layers must remain structurally separate in wiring even though both
 ultimately register providers by port name.

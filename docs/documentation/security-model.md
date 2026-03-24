@@ -67,8 +67,8 @@ The router provides development workflow constraints specifically designed to gu
 
 - `internal/router/ports.go` - Port constants
 - `internal/router/registry_imports.go` - Port validation
-- `internal/router/ext/extensions.go` - Application extensions
-- `internal/router/ext/optional_extensions.go` - Optional extensions
+- `internal/router/ext/extensions.go` - Required application extensions
+- `internal/router/ext/optional_extensions.go` - Optional capability extensions
 
 **Why this matters:**
 - Wrong path: Edit frozen files (harder, requires understanding consequences)
@@ -102,7 +102,7 @@ The mutable wiring surface is intentionally narrow:
 - `ports.go` should contain port declarations only
 - `registry_imports.go` should contain the whitelist and registry declaration only
 - `ext/optional_extensions.go` should remain wiring-focused
-- `ext/extensions.go` is the application boot composition layer and may also contain host policy checks and compiled-in extension declarations
+- `ext/extensions.go` is the required application boot composition layer and should contain only explicit app-owned wiring
 
 The main wiring files are designed to stay simple and auditable, typically containing:
 - Constant declarations

@@ -89,12 +89,22 @@ func (e *Extension) RouterProvideRegistration(reg *router.Registry) error {
     provider := &ConfigProvider{ /* ... */ }
     return reg.RouterRegisterProvider(router.PortPrimary, provider)
 }
+```
 
-// Extension returns the extension instance for use in internal/router/ext/extensions.go.
-func Extension() *Extension {
-    return &Extension{}
+Wire with `wrlk ext app add` for required application boot or `wrlk ext add` for optional capability boot.
+
+### RollbackExtension Interface
+
+Extensions that start work during boot can opt into boot-only rollback:
+
+```go
+type RollbackExtension interface {
+    Extension
+    RouterRollbackBoot(ctx context.Context) error
 }
 ```
+
+Rollback runs only when boot aborts after startup work began. It is not a general runtime shutdown hook.
 
 ## AsyncExtension Interface
 

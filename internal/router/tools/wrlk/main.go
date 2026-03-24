@@ -143,6 +143,9 @@ func RouterWriteCLIUsage(writer io.Writer) error {
 	if _, err := fmt.Fprintln(writer, "  ext add"); err != nil {
 		return fmt.Errorf("write CLI usage ext add command: %w", err)
 	}
+	if _, err := fmt.Fprintln(writer, "  ext app add"); err != nil {
+		return fmt.Errorf("write CLI usage ext app add command: %w", err)
+	}
 	if _, err := fmt.Fprintln(writer, "  guide"); err != nil {
 		return fmt.Errorf("write CLI usage guide command: %w", err)
 	}
@@ -156,9 +159,9 @@ func RouterWriteGuide(writer io.Writer) error {
 		"Router guide:",
 		"  - Use `wrlk add --name <PortName> --value <string>` to add a new router port.",
 		"  - `wrlk add` writes a local restore snapshot before mutating router files.",
-		"  - Use `wrlk ext add --name <ExtensionName>` to scaffold a new router capability extension.",
-		"  - `wrlk ext add` creates internal/router/ext/extensions/<name>/ with doc.go and extension.go.",
-		"  - `wrlk ext add` splices the new extension into optional_extensions.go and writes a restore snapshot.",
+		"  - Use `wrlk ext add --name <ExtensionName>` for optional capability extensions in optional_extensions.go.",
+		"  - Use `wrlk ext app add --name <ExtensionName>` for required application extensions in extensions.go.",
+		"  - Both scaffold commands create internal/router/ext/extensions/<name>/ and write a restore snapshot.",
 		"  - Use `wrlk lock verify` to detect drift in checksum-tracked router core files.",
 		"  - Use `wrlk lock update` only when intentional router core changes are accepted.",
 		"  - Use `wrlk lock restore` to restore the previous local router snapshot.",

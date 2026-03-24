@@ -7,7 +7,7 @@ The Router is a zero-dependency dependency broker for Hexagonal Architecture in 
 The Router is a compile-time dependency injection system that:
 
 - **Centralizes port declarations** - All port names are defined in one place (`ports.go`)
-- **Wires adapters explicitly** - Adapters register through the extension system (`ext/extensions.go`)
+- **Wires adapters explicitly** - Required adapters live in `ext/extensions.go`; optional capability extensions live in `ext/optional_extensions.go`
 - **Prevents coupling creep** - Frozen/mutable file split stops accidental modifications to core contracts
 - **Provides lock-free reads** - Uses `atomic.Pointer` for O(1) provider resolution after boot
 
@@ -22,8 +22,8 @@ Without guardrails, AI agents (and developers) tend to:
 
 The Router solves this by making dependency wiring an auditable declaration surface. Cross-adapter coupling requires explicit changes to:
 - [`ports.go`](architecture.md#portsgo--mutable-port-whitelist) - port whitelist
-- `internal/router/ext/extensions.go` - application extensions
-- `internal/router/ext/optional_extensions.go` - optional capabilities
+- `internal/router/ext/extensions.go` - required application extensions
+- `internal/router/ext/optional_extensions.go` - optional capability extensions
 
 ### Secondary Problem Solved: Shared Infrastructure Modification
 
@@ -112,7 +112,7 @@ See [CLI Tools](cli-tools.md) for more commands.
 | [Concepts](concepts.md)               | Core concepts: PortName, Extension interfaces, Registry, dependency ordering |
 | [API Reference](api-reference.md)     | API documentation for all public functions and error codes                   |
 | [Usage Guide](usage.md)               | Step-by-step usage: boot, resolve, extend, add ports                         |
-| [CLI Tools](cli-tools.md)             | CLI commands: wrlk lock, wrlk add, wrlk ext add, wrlk guide                  |
+| [CLI Tools](cli-tools.md)             | CLI commands: wrlk lock, wrlk add, wrlk ext add, wrlk ext app add, wrlk guide |
 | [Troubleshooting](troubleshooting.md) | Common errors, FAQ, error code reference                                     |
 | [Security Model](security-model.md)   | AI guardrails, router.lock, frozen/mutable protection                        |
 
@@ -132,8 +132,8 @@ internal/router/
 │   ├── ports.go              # PortName constants
 │   ├── registry_imports.go   # Port validation + atomic registry
 │   ├── ext/
-│   │   ├── extensions.go         # Application extensions
-│   │   └── optional_extensions.go # Optional extensions
+│   │   ├── extensions.go         # Required application extensions
+│   │   └── optional_extensions.go # Optional capability extensions
 │
 ├── FROZEN (never edit directly)
 │   ├── extension.go          # Extension interfaces + RouterLoadExtensions

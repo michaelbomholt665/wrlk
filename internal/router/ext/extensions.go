@@ -9,11 +9,9 @@ import (
 	"github.com/michaelbomholt665/wrlk/internal/router"
 )
 
-var extensions = []router.Extension{
-	&primaryExtension{},
-	&secondaryExtension{},
-	&tertiaryExtension{},
-}
+// extensions contains required application extensions only.
+// Keep this slice explicit and app-owned; do not leave sample providers wired here.
+var extensions = []router.Extension{}
 
 const (
 	wrlkEnvKey        = "WRLK_ENV"
@@ -82,82 +80,4 @@ func parseRouterBoolEnv(value string) bool {
 	default:
 		return false
 	}
-}
-
-type primaryExtension struct{}
-
-// Required reports that the primary extension is mandatory for boot.
-func (e *primaryExtension) Required() bool {
-	return true
-}
-
-// Consumes reports that the primary extension has no boot-time port dependencies.
-func (e *primaryExtension) Consumes() []router.PortName {
-	return nil
-}
-
-// Provides reports that the primary extension registers the primary port.
-func (e *primaryExtension) Provides() []router.PortName {
-	return []router.PortName{router.PortPrimary}
-}
-
-// RouterProvideRegistration registers the primary provider into the boot registry.
-func (e *primaryExtension) RouterProvideRegistration(reg *router.Registry) error {
-	if err := reg.RouterRegisterProvider(router.PortPrimary, struct{ Name string }{Name: "standalone-primary"}); err != nil {
-		return fmt.Errorf("register primary provider: %w", err)
-	}
-
-	return nil
-}
-
-type secondaryExtension struct{}
-
-// Required reports that the secondary extension is mandatory for boot.
-func (e *secondaryExtension) Required() bool {
-	return true
-}
-
-// Consumes reports that the secondary extension has no boot-time port dependencies.
-func (e *secondaryExtension) Consumes() []router.PortName {
-	return nil
-}
-
-// Provides reports that the secondary extension registers the secondary port.
-func (e *secondaryExtension) Provides() []router.PortName {
-	return []router.PortName{router.PortSecondary}
-}
-
-// RouterProvideRegistration registers the secondary provider into the boot registry.
-func (e *secondaryExtension) RouterProvideRegistration(reg *router.Registry) error {
-	if err := reg.RouterRegisterProvider(router.PortSecondary, struct{ Name string }{Name: "standalone-secondary"}); err != nil {
-		return fmt.Errorf("register secondary provider: %w", err)
-	}
-
-	return nil
-}
-
-type tertiaryExtension struct{}
-
-// Required reports that the tertiary extension is mandatory for boot.
-func (e *tertiaryExtension) Required() bool {
-	return true
-}
-
-// Consumes reports that the tertiary extension has no boot-time port dependencies.
-func (e *tertiaryExtension) Consumes() []router.PortName {
-	return nil
-}
-
-// Provides reports that the tertiary extension registers the tertiary port.
-func (e *tertiaryExtension) Provides() []router.PortName {
-	return []router.PortName{router.PortTertiary}
-}
-
-// RouterProvideRegistration registers the tertiary provider into the boot registry.
-func (e *tertiaryExtension) RouterProvideRegistration(reg *router.Registry) error {
-	if err := reg.RouterRegisterProvider(router.PortTertiary, struct{ Name string }{Name: "standalone-tertiary"}); err != nil {
-		return fmt.Errorf("register tertiary provider: %w", err)
-	}
-
-	return nil
 }

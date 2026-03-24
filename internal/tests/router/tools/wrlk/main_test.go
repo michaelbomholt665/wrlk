@@ -176,6 +176,7 @@ func TestWrlkGuideCommand_PrintsOperationalGuide(t *testing.T) {
 	assert.Contains(t, result.stdout, "wrlk add")
 	assert.Contains(t, result.stdout, "lock verify")
 	assert.Contains(t, result.stdout, "lock restore")
+	assert.Contains(t, result.stdout, "ext app add")
 	assert.Contains(t, result.stdout, "contract-blind")
 	assert.Contains(t, result.stdout, "Any")
 }
@@ -187,6 +188,7 @@ func TestWrlkHelpFlag_PrintsTopLevelUsage(t *testing.T) {
 	assert.Equal(t, 0, result.exitCode)
 	assert.Contains(t, result.stdout, "usage: Router")
 	assert.Contains(t, result.stdout, "lock verify")
+	assert.Contains(t, result.stdout, "ext app add")
 	assert.NotContains(t, result.stderr, "help requested")
 }
 

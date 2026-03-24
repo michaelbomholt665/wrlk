@@ -18,7 +18,7 @@ internal/tests/router/
 └── tools/wrlk/             # CLI tool tests
     ├── main_test.go        # lock verify/update/restore tests
     ├── live_test.go        # live run session tests
-    └── ext_test.go         # wrlk ext add tests
+    └── ext_test.go         # wrlk ext add / ext app add tests
 ```
 
 ## Test Framework
@@ -132,6 +132,11 @@ Tests full boot lifecycle including topological sort:
 | `TestBoot_OptionalExtension_RegistersCapability`                      | Optional extensions can register providers        |
 | `TestBoot_OptionalExtension_CapabilityConsumedByApplication`          | Application can consume optional layer ports      |
 | `TestBoot_OptionalLayer_NoExtensions_BootStillSucceeds`               | Empty optional layer doesn't break boot           |
+| `TestBoot_RollbackCalledOnRequiredFailure`                            | Required boot failure triggers rollback           |
+| `TestBoot_RollbackCalledOnAsyncTimeout`                               | Async timeout triggers rollback                   |
+| `TestBoot_RollbackCalledOnCompareAndSwapLoss`                         | CAS-loss boot attempt rolls back                  |
+| `TestBoot_RollbackOrder_ReverseStartupOrder`                          | Rollback order is reverse startup order           |
+| `TestBoot_RollbackErrorsDoNotReplacePrimaryFailure`                   | Cleanup errors do not replace the primary error   |
 
 ### Restricted Port Tests (`restricted_test.go`)
 
@@ -156,6 +161,7 @@ Tests environment and policy enforcement at boot:
 | `TestBootExtensions_ProdAllowAny_FailsBeforeBoot`            | ROUTER_ALLOW_ANY in prod fails                |
 | `TestBuildExtensionBundle_ProvidesMatchesRegistration`       | Extension bundle provides match registrations |
 | `TestBuildExtensionBundle_OptionalExtensionsArePackageLevel` | Optional extensions are package-level         |
+| `TestBuildExtensionBundle_ApplicationExtensionsStartEmpty`   | Required application wiring starts empty      |
 
 ### Benchmarks (`benchmark_test.go`)
 
@@ -215,6 +221,9 @@ go test -tags test -bench=. -benchtime=3s ./internal/tests/router/...
 | `TestExtAdd_WritesSnapshot`            | Snapshot written before mutation            |
 | `TestExtAdd_HelpFlag_PrintsUsage`      | --help prints usage                         |
 | `TestExtHelp_PrintsExtUsage`           | ext --help prints subcommands               |
+| `TestExtAppAdd_SplicesApplicationExtensions` | extensions.go updated with import      |
+| `TestExtAppAdd_DryRun_NoWrite`         | ext app add dry-run does not write files    |
+| `TestExtAppAdd_HelpFlag_PrintsUsage`   | ext app add --help prints usage             |
 
 ## Running the Tests
 

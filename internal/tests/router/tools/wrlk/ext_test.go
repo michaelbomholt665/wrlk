@@ -31,9 +31,22 @@ var optionalExtensions = []router.Extension{
 }
 `
 
+const minimalApplicationExtensionsFile = `package ext
+
+import (
+	"github.com/michaelbomholt665/wrlk/internal/router"
+	"github.com/michaelbomholt665/wrlk/internal/router/ext/extensions/primary"
+)
+
+var extensions = []router.Extension{
+	&primary.Extension{},
+}
+`
+
 const (
-	extOptionalRelPath  = "internal/router/ext/optional_extensions.go"
-	extExtensionsRelDir = "internal/router/ext/extensions"
+	extOptionalRelPath    = "internal/router/ext/optional_extensions.go"
+	extApplicationRelPath = "internal/router/ext/extensions.go"
+	extExtensionsRelDir   = "internal/router/ext/extensions"
 )
 
 // — Tests —
@@ -238,6 +251,50 @@ func TestExtHelp_PrintsExtUsage(t *testing.T) {
 	assert.Equal(t, 0, result.exitCode)
 	assert.Contains(t, result.stdout, "ext")
 	assert.Contains(t, result.stdout, "add")
+	assert.Contains(t, result.stdout, "app add")
+}
+
+func TestExtAppAdd_SplicesApplicationExtensions(t *testing.T) {
+	root := createExtFixture(t)
+
+	result := runWrlkCommand(t, root, "ext", "app", "add", "--name", "billing")
+	require.NoError(t, result.err, result.stderr)
+	require.Equal(t, 0, result.exitCode)
+
+	content, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(extApplicationRelPath)))
+	require.NoError(t, err)
+	src := string(content)
+
+	assert.Contains(t, src, "/billing\"")
+	assert.Contains(t, src, "&billing.Extension{}")
+}
+
+func TestExtAppAdd_DryRun_NoWrite(t *testing.T) {
+	root := createExtFixture(t)
+
+	applicationBefore, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(extApplicationRelPath)))
+	require.NoError(t, err)
+
+	result := runWrlkCommand(t, root, "ext", "app", "add", "--name", "billing", "--dry-run")
+	require.NoError(t, result.err, result.stderr)
+	require.Equal(t, 0, result.exitCode)
+
+	extDir := filepath.Join(root, filepath.FromSlash(extExtensionsRelDir), "billing")
+	assert.NoDirExists(t, extDir, "dry-run must not create the extension directory")
+
+	applicationAfter, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(extApplicationRelPath)))
+	require.NoError(t, err)
+	assert.Equal(t, string(applicationBefore), string(applicationAfter), "extensions.go must not be modified in dry-run mode")
+	assert.Contains(t, result.stdout+result.stderr, "extensions.go")
+}
+
+func TestExtAppAdd_HelpFlag_PrintsUsage(t *testing.T) {
+	result := runWrlkCommand(t, repositoryRoot(t), "ext", "app", "add", "--help")
+
+	require.NoError(t, result.err, result.stderr)
+	assert.Equal(t, 0, result.exitCode)
+	assert.Contains(t, result.stdout, "--name")
+	assert.Contains(t, result.stdout, "application router extension")
 }
 
 // — Fixture helpers —
@@ -252,6 +309,7 @@ func createExtFixture(t *testing.T) string {
 
 	// The minimal optional_extensions.go the tool will splice into.
 	writeExtFixtureFile(t, root, extOptionalRelPath, minimalOptionalExtensionsFile)
+	writeExtFixtureFile(t, root, extApplicationRelPath, minimalApplicationExtensionsFile)
 
 	// Minimal router core files are required by RouterWriteSnapshotBeforeMutation.
 	writeExtFixtureFile(t, root, "internal/router/extension.go", "package router\n\nfunc RouterLoadExtensions() {}\n")
