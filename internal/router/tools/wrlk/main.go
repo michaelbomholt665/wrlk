@@ -186,8 +186,17 @@ func RouterWriteCLIUsage(writer io.Writer) error {
 	if _, err := fmt.Fprintln(writer, "  ext add"); err != nil {
 		return fmt.Errorf("write CLI usage ext add command: %w", err)
 	}
+	if _, err := fmt.Fprintln(writer, "  ext install"); err != nil {
+		return fmt.Errorf("write CLI usage ext install command: %w", err)
+	}
+	if _, err := fmt.Fprintln(writer, "  ext remove"); err != nil {
+		return fmt.Errorf("write CLI usage ext remove command: %w", err)
+	}
 	if _, err := fmt.Fprintln(writer, "  ext app add"); err != nil {
 		return fmt.Errorf("write CLI usage ext app add command: %w", err)
+	}
+	if _, err := fmt.Fprintln(writer, "  ext app remove"); err != nil {
+		return fmt.Errorf("write CLI usage ext app remove command: %w", err)
 	}
 	if _, err := fmt.Fprintln(writer, "  guide"); err != nil {
 		return fmt.Errorf("write CLI usage guide command: %w", err)
@@ -206,18 +215,21 @@ func RouterWriteGuide(writer io.Writer) error {
 		"",
 		"Workflow:",
 		"  1. Add or update a port with `wrlk add --name <PortName> --value <port-name>`.",
-		"  2. Add an extension package under `internal/router/ext/extensions/<name>/`.",
+		"  2. Add an extension package under `internal/router/ext/extensions/<name>/` only for router-native optional capabilities.",
 		"  3. Wire it through exactly one composition file:",
 		"     - `internal/router/ext/extensions.go` for required application extensions that must boot.",
 		"     - `internal/router/ext/optional_extensions.go` for optional capability extensions only.",
 		"  4. Run `wrlk lock verify` before and after changes to catch drift in protected router files.",
 		"  5. Run `wrlk lock update` only after intentional router core changes are reviewed and accepted.",
-		"  6. Run `wrlk lock restore` to put protected files back to the last local snapshot written by `wrlk add` or `wrlk ext ... add`.",
+		"  6. Run `wrlk lock restore` to put protected files back to the last local snapshot written by `wrlk add` or `wrlk ext ...` mutations.",
 		"",
 		"Choose the command deliberately:",
 		"  - `wrlk add` adds ports. Do not hand-edit ports first and update generated wiring later.",
-		"  - `wrlk ext add` adds an optional capability extension and wires `optional_extensions.go`.",
-		"  - `wrlk ext app add` adds a required application extension and wires `extensions.go`.",
+		"  - `wrlk ext add` scaffolds and wires a new optional capability extension package.",
+		"  - `wrlk ext install` wires an existing optional capability extension package.",
+		"  - `wrlk ext remove` unwires an optional capability extension package.",
+		"  - `wrlk ext app add` wires an existing required application adapter from `internal/adapters/<name>`.",
+		"  - `wrlk ext app remove` unwires an application adapter from `extensions.go`.",
 		"  - `wrlk guide current` prints the currently wired ports and extension inventory for the target root.",
 		"  - `wrlk lock verify` checks checksum-tracked router core files for drift.",
 		"  - `wrlk lock update` refreshes the lock file after accepted intentional core changes.",
@@ -243,8 +255,9 @@ func RouterWriteGuide(writer io.Writer) error {
 		"",
 		"Short examples:",
 		"  - Add a port: `wrlk add --name PortTelemetry --value telemetry`",
-		"  - Add an optional extension: `wrlk ext add --name telemetry`",
-		"  - Add a required application extension: `wrlk ext app add --name postgres`",
+		"  - Add a new optional extension package: `wrlk ext add --name telemetry`",
+		"  - Wire an existing optional extension package: `wrlk ext install --name telemetry`",
+		"  - Wire an existing application adapter: `wrlk ext app add --name postgres`",
 		"  - Simple provider extension:",
 		"      func (e *Extension) Provides() []router.PortName { return []router.PortName{router.PortTelemetry} }",
 		"      func (e *Extension) RouterProvideRegistration(reg *router.Registry) error {",

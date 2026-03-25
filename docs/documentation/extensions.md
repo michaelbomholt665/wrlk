@@ -18,7 +18,7 @@ For this category:
 - the extension is wired in `internal/router/ext/optional_extensions.go`
 - `Required()` returns `false`
 
-Use a **required application extension** only when the app cannot boot without it. Those belong in `internal/router/ext/extensions.go`.
+Use a **required application extension** only when the app cannot boot without it. Those belong in `internal/router/ext/extensions.go`, but the package itself stays app-owned under `internal/adapters/<name>/` and is wired with `wrlk ext app add`.
 
 ## The Pattern That Actually Works
 
@@ -255,7 +255,7 @@ For an optional capability extension, consumers should degrade gracefully when t
 Before calling an extension “done”, verify all of this:
 
 - the port was added with `wrlk add`
-- the extension was scaffolded with `wrlk ext add`
+- the optional extension package was scaffolded with `wrlk ext add` or wired with `wrlk ext install`
 - `Required()` matches the intended boot policy
 - `Provides()` matches the registered port exactly
 - `Consumes()` is truthful

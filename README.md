@@ -106,13 +106,17 @@ if !ok {
 ```bash
 go run ./internal/router/tools/wrlk add --name PortFoo --value foo
 go run ./internal/router/tools/wrlk ext add --name telemetry
+go run ./internal/router/tools/wrlk ext install --name telemetry
 go run ./internal/router/tools/wrlk ext app add --name billing
 go run ./internal/router/tools/wrlk lock verify
 ```
 
 Use:
-- `ext add` for optional capability extensions wired into `optional_extensions.go`
-- `ext app add` for required application extensions wired into `extensions.go`
+- `ext add` to scaffold and wire a new optional capability extension in `optional_extensions.go`
+- `ext install` to wire an existing optional capability extension in `optional_extensions.go`
+- `ext remove` to unwire an optional capability extension from `optional_extensions.go`
+- `ext app add` to wire an existing application adapter from `internal/adapters/<name>` into `extensions.go`
+- `ext app remove` to unwire an application adapter from `extensions.go`
 
 ## Important Rule
 

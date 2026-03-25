@@ -18,7 +18,7 @@ internal/tests/router/
 └── tools/wrlk/             # CLI tool tests
     ├── main_test.go        # lock verify/update/restore tests
     ├── live_test.go        # live run session tests
-    └── ext_test.go         # wrlk ext add / ext app add tests
+    └── ext_test.go         # wrlk ext add/install/remove and ext app add/remove tests
 ```
 
 ## Test Framework
@@ -207,23 +207,21 @@ go test -tags test -bench=. -benchtime=3s ./internal/tests/router/...
 | `TestLive_ParseOptions_RequiresExpect`          | --expect is required                      |
 | `TestLive_Run_WrongSubcommand_Rejected`         | Unknown subcommand rejected               |
 
-### Extension Add Tests (`tools/wrlk/ext_test.go`)
+### Extension Wiring Tests (`tools/wrlk/ext_test.go`)
 
-| Test                                   | What It Verifies                            |
-| -------------------------------------- | ------------------------------------------- |
-| `TestExtAdd_CreatesDocGo`              | doc.go created at correct path              |
-| `TestExtAdd_CreatesExtensionGo`        | extension.go created with correct structure |
-| `TestExtAdd_SplicesOptionalExtensions` | optional_extensions.go updated with import  |
-| `TestExtAdd_DryRun_NoWrite`            | --dry-run doesn't write files               |
-| `TestExtAdd_DuplicateName_Fails`       | Duplicate extension name fails              |
-| `TestExtAdd_MissingName_Fails`         | Missing --name fails                        |
-| `TestExtAdd_InvalidName_Fails`         | Invalid names are rejected                  |
-| `TestExtAdd_WritesSnapshot`            | Snapshot written before mutation            |
-| `TestExtAdd_HelpFlag_PrintsUsage`      | --help prints usage                         |
-| `TestExtHelp_PrintsExtUsage`           | ext --help prints subcommands               |
-| `TestExtAppAdd_SplicesApplicationExtensions` | extensions.go updated with import      |
-| `TestExtAppAdd_DryRun_NoWrite`         | ext app add dry-run does not write files    |
-| `TestExtAppAdd_HelpFlag_PrintsUsage`   | ext app add --help prints usage             |
+| Test | What It Verifies |
+| --- | --- |
+| `TestExtAdd_CreatesDocGo` | `ext add` scaffolds package docs |
+| `TestExtAdd_CreatesExtensionGo` | `ext add` scaffolds extension boilerplate |
+| `TestExtInstall_WiresExistingOptionalExtension` | `ext install` wires an existing optional extension |
+| `TestExtRemove_UnwiresOptionalExtension` | `ext remove` unwires an optional extension |
+| `TestExtAppAdd_WiresExistingAdapter` | `ext app add` wires an existing adapter import |
+| `TestExtAppRemove_UnwiresApplicationAdapter` | `ext app remove` unwires an app adapter |
+| `TestExtInstall_DuplicateAlreadyWired_Fails` | duplicate optional install is rejected |
+| `TestExtAppAdd_DuplicateAlreadyWired_Fails` | duplicate app adapter add is rejected |
+| `TestExtRemove_NotFound_Fails` | optional remove reports not-found |
+| `TestExtAppRemove_NotFound_Fails` | app adapter remove reports not-found |
+| `TestExtMutationOutputMentionsTargetFiles` | dry-run output points at the right composition file |
 
 ## Running the Tests
 

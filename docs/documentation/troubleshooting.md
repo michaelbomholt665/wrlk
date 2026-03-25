@@ -326,7 +326,7 @@ Use application extensions for:
 - Core services (database, config, auth)
 - Services required for the application to function
 
-Scaffold them with:
+Wire them with:
 
 ```bash
 go run ./internal/router/tools/wrlk ext app add --name Billing

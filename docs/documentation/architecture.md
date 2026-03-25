@@ -97,7 +97,7 @@ import (
 
 var optionalExtensions = []router.Extension{
     &telemetry.Extension{},
-    // Add one line per optional extension
+    // Wired with `wrlk ext add` or `wrlk ext install`.
 }
 ```
 
@@ -117,7 +117,7 @@ import (
 
 var extensions = []router.Extension{
     // App-owned required extensions only.
-    // Generated with `wrlk ext app add` or maintained manually.
+    // Wired with `wrlk ext app add` or maintained manually.
 }
 
 // RouterBootExtensions wires optional extensions first, then application

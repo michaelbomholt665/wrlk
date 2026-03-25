@@ -59,7 +59,7 @@ That updates:
 
 ## Add an Extension
 
-There are two extension scaffold commands.
+There are separate scaffold and wiring commands.
 
 Optional capability extension:
 
@@ -69,15 +69,23 @@ go run ./internal/router/tools/wrlk ext add --name telemetry
 
 This creates `internal/router/ext/extensions/telemetry/` and wires it into `internal/router/ext/optional_extensions.go`.
 
+Wire an existing optional capability extension:
+
+```bash
+go run ./internal/router/tools/wrlk ext install --name telemetry
+```
+
+This wires the existing `internal/router/ext/extensions/telemetry/` package into `internal/router/ext/optional_extensions.go`.
+
 Required application extension:
 
 ```bash
 go run ./internal/router/tools/wrlk ext app add --name billing
 ```
 
-This creates `internal/router/ext/extensions/billing/` and wires it into `internal/router/ext/extensions.go`.
+This wires `internal/adapters/billing/` into `internal/router/ext/extensions.go`.
 
-Use `--dry-run` with either command to preview changes.
+Use `--dry-run` with `ext add`, `ext install`, `ext remove`, `ext app add`, or `ext app remove` to preview changes.
 
 ## Layout
 

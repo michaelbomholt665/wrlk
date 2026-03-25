@@ -12,7 +12,10 @@ go run ./internal/router/tools/wrlk <command>
 | --- | --- |
 | `wrlk add` | Add a router port |
 | `wrlk ext add` | Scaffold an optional capability extension |
-| `wrlk ext app add` | Scaffold a required application extension |
+| `wrlk ext install` | Wire an existing optional capability extension |
+| `wrlk ext remove` | Remove an optional capability extension wiring |
+| `wrlk ext app add` | Wire an existing required application adapter |
+| `wrlk ext app remove` | Remove an application adapter wiring |
 | `wrlk lock verify` | Verify `router.lock` |
 | `wrlk lock update` | Update `router.lock` after intentional core changes |
 | `wrlk lock restore` | Restore the previous local snapshot |
@@ -36,13 +39,21 @@ go run ./internal/router/tools/wrlk ext add --name telemetry
 
 This creates `internal/router/ext/extensions/telemetry/` and wires it into `internal/router/ext/optional_extensions.go`.
 
-Add a required application extension:
+Wire an existing optional capability extension:
+
+```bash
+go run ./internal/router/tools/wrlk ext install --name telemetry
+```
+
+This wires the existing `internal/router/ext/extensions/telemetry/` package into `internal/router/ext/optional_extensions.go`.
+
+Wire an existing required application adapter:
 
 ```bash
 go run ./internal/router/tools/wrlk ext app add --name billing
 ```
 
-This creates `internal/router/ext/extensions/billing/` and wires it into `internal/router/ext/extensions.go`.
+This wires `internal/adapters/billing` into `internal/router/ext/extensions.go`.
 
 Verify router core integrity:
 
@@ -70,6 +81,6 @@ go run ./internal/router/tools/wrlk guide extension
 
 ## Notes
 
-- `ext add` and `ext app add` both support `--dry-run`.
+- `ext add`, `ext install`, `ext remove`, `ext app add`, and `ext app remove` support `--dry-run`.
 - `extensions.go` is app-owned and should contain only the required extensions you actually want booted.
 - `optional_extensions.go` is for non-fatal capability extensions only.

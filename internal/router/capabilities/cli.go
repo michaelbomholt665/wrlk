@@ -13,6 +13,8 @@ const (
 	TextKindPlain = "plain"
 	// TextKindHeader emphasizes headings.
 	TextKindHeader = "header"
+	// TextKindDebug highlights verbose background routing details.
+	TextKindDebug = "debug"
 	// TextKindInfo highlights informational output.
 	TextKindInfo = "info"
 	// TextKindSuccess highlights successful output.
@@ -21,6 +23,8 @@ const (
 	TextKindWarning = "warning"
 	// TextKindError highlights error output.
 	TextKindError = "error"
+	// TextKindFatal highlights unrecoverable state or crash output.
+	TextKindFatal = "fatal"
 	// TextKindMuted de-emphasizes secondary output.
 	TextKindMuted = "muted"
 )

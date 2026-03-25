@@ -112,7 +112,7 @@ See [CLI Tools](cli-tools.md) for more commands.
 | [Concepts](concepts.md)               | Core concepts: PortName, Extension interfaces, Registry, dependency ordering |
 | [API Reference](api-reference.md)     | API documentation for all public functions and error codes                   |
 | [Usage Guide](usage.md)               | Step-by-step usage: boot, resolve, extend, add ports                         |
-| [CLI Tools](cli-tools.md)             | CLI commands: wrlk lock, wrlk add, wrlk ext add, wrlk ext app add, wrlk guide |
+| [CLI Tools](cli-tools.md)             | CLI commands: wrlk lock, wrlk add, wrlk ext add/install/remove, wrlk ext app add/remove, wrlk guide |
 | [Extension Authoring](extensions.md)  | Detailed guide for building real optional and app-consumable extensions      |
 | [Troubleshooting](troubleshooting.md) | Common errors, FAQ, error code reference                                     |
 | [Security Model](security-model.md)   | AI guardrails, router.lock, frozen/mutable protection                        |
