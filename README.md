@@ -1,13 +1,62 @@
 # Router Package
 
-Zero-dependency port registry and boot wiring for Go applications.
+`internal/router` is a small, zero-dependency composition router for Go applications. It gives the application one explicit place to register providers behind typed port names, boot extensions in dependency order, and publish a single immutable registry snapshot that consumers can resolve from without runtime wiring logic scattered across the codebase.
+
+The package supports two extension types. Router capability extensions add optional infrastructure concerns such as telemetry and other cross-cutting behavior, while app-specific extensions wire the concrete adapters your application actually runs behind its declared ports. The package is intentionally split into a frozen core and an app-owned wiring layer: the core stays contract-blind and fast, `internal/router/ext/optional_extensions.go` owns capability extensions, and `internal/router/ext/extensions.go` owns required application adapter wiring. A local `wrlk` tool and `router.lock` keep changes to the router surface explicit, reviewable, and hard to drift by accident.
+
+## Architecture
+
+```mermaid
+---
+config:
+  theme: neutral
+  look: classic
+---
+flowchart TB
+    App["Application startup"]
+
+    subgraph Wiring["Wiring Layer"]
+        Ext["internal/router/ext\nBuilds and boots the extension bundle"]
+        Optional["Router capability extensions\nOptional cross-cutting behavior"]
+        Required["App-specific extensions\nConcrete adapter wiring"]
+    end
+
+    subgraph Core["Router Core"]
+        Router["internal/router\nFrozen registry + boot kernel"]
+        Snapshot["Immutable provider snapshot"]
+    end
+
+    subgraph Contracts["Contracts"]
+        Ports["internal/ports\nTyped interfaces and port contracts"]
+    end
+
+    subgraph Implementations["Implementations"]
+        Adapters["internal/adapters/*\nConcrete providers"]
+    end
+
+    App --> Ext
+    Ext --> Optional
+    Ext --> Required
+    Optional --> Router
+    Required --> Router
+    Router --> Snapshot
+    Adapters -->|implement| Ports
+    Ext -->|instantiates and registers| Adapters
+    Router -->|resolves by PortName| Ports
+
+    Adapters -. depend on router registration API .-> Router
+    Router -. remains blind to concrete implementations .-> Adapters
+    Router -. does not own business contracts .-> Ports
+```
 
 ## What It Does
 
-- Registers providers by typed port name
+- Registers providers behind typed `PortName` values
 - Boots optional extensions before required application extensions
-- Publishes one immutable snapshot for lock-free reads
-- Keeps router core changes explicit with `router.lock`
+- Orders extension startup from declared `Consumes()` and `Provides()` dependencies
+- Publishes one immutable snapshot for lock-free provider resolution
+- Supports boot-time warnings, fatal failures, rollback hooks, and restricted port access
+- Protects the router kernel with `router.lock` and the `wrlk` scaffolding/verification workflow
 
 ## Key Files
 
@@ -72,6 +121,7 @@ Use:
 ## Docs
 
 - [Usage](docs/documentation/usage.md)
+- [Extension Authoring](docs/documentation/extensions.md)
 - [CLI Tools](docs/documentation/cli-tools.md)
 - [Architecture](docs/documentation/architecture.md)
 - [Troubleshooting](docs/documentation/troubleshooting.md)

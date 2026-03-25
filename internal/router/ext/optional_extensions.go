@@ -23,7 +23,7 @@ package ext
 
 import (
 	"github.com/michaelbomholt665/wrlk/internal/router"
-	"github.com/michaelbomholt665/wrlk/internal/router/ext/extensions/telemetry"
+	"github.com/michaelbomholt665/wrlk/internal/router/ext/extensions/prettystyle"
 )
 
 // optionalExtensions is the slice of capability extensions that extend the base router
@@ -31,5 +31,5 @@ import (
 // application extensions during boot and are optional - boot continues with warnings
 // if they fail to load.
 var optionalExtensions = []router.Extension{
-	&telemetry.Extension{},
+	&prettystyle.Extension{},
 }

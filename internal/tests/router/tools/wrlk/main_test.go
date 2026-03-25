@@ -174,11 +174,51 @@ func TestWrlkGuideCommand_PrintsOperationalGuide(t *testing.T) {
 	assert.Equal(t, 0, result.exitCode)
 	assert.Contains(t, result.stdout, "Router guide:")
 	assert.Contains(t, result.stdout, "wrlk add")
+	assert.Contains(t, result.stdout, "internal/router/ext/extensions.go")
+	assert.Contains(t, result.stdout, "internal/router/ext/optional_extensions.go")
 	assert.Contains(t, result.stdout, "lock verify")
+	assert.Contains(t, result.stdout, "lock update")
 	assert.Contains(t, result.stdout, "lock restore")
+	assert.Contains(t, result.stdout, "Provides()")
+	assert.Contains(t, result.stdout, "Consumes()")
+	assert.Contains(t, result.stdout, "Optional extension failures produce warnings")
+	assert.Contains(t, result.stdout, "Required extension failures fail boot")
+	assert.Contains(t, result.stdout, "not a framework")
 	assert.Contains(t, result.stdout, "ext app add")
+	assert.Contains(t, result.stdout, "wrlk ext add")
 	assert.Contains(t, result.stdout, "contract-blind")
 	assert.Contains(t, result.stdout, "Any")
+	assert.Contains(t, result.stdout, "guide current")
+}
+
+func TestWrlkGuideCurrentCommand_PrintsCurrentInventory(t *testing.T) {
+	result := runWrlkCommand(t, repositoryRoot(t), "guide", "current")
+
+	require.NoError(t, result.err, result.stderr)
+	assert.Equal(t, 0, result.exitCode)
+	assert.Contains(t, result.stdout, "Router current guide:")
+	assert.Contains(t, result.stdout, "Declared ports:")
+	assert.Contains(t, result.stdout, "PortCLIStyle = \"cli-style\"")
+	assert.Contains(t, result.stdout, "Optional capability extensions:")
+	assert.Contains(t, result.stdout, "prettystyle (optional)")
+	assert.Contains(t, result.stdout, "provides: PortCLIStyle")
+	assert.Contains(t, result.stdout, "consumes: none")
+	assert.Contains(t, result.stdout, "summary: Package prettystyle is a router capability extension")
+	assert.Contains(t, result.stdout, "usage: Depend on this extension when callers want styled CLI text or table output.")
+	assert.Contains(t, result.stdout, "Application adapter extensions:")
+	assert.Contains(t, result.stdout, "none wired")
+}
+
+func TestWrlkGuideExtensionCommand_PrintsCapabilityTranslationGuidance(t *testing.T) {
+	result := runWrlkCommand(t, repositoryRoot(t), "guide", "extension")
+
+	require.NoError(t, result.err, result.stderr)
+	assert.Equal(t, 0, result.exitCode)
+	assert.Contains(t, result.stdout, "Router extension authoring guide:")
+	assert.Contains(t, result.stdout, "canonical semantic roles owned by the router contract")
+	assert.Contains(t, result.stdout, "different style headers or option names")
+	assert.Contains(t, result.stdout, "Convert canonical router capability roles into the renderer's established patterns inside the extension.")
+	assert.Contains(t, result.stdout, "Add any renderer dependency to the extension only, never to the router core.")
 }
 
 func TestWrlkHelpFlag_PrintsTopLevelUsage(t *testing.T) {
@@ -189,6 +229,7 @@ func TestWrlkHelpFlag_PrintsTopLevelUsage(t *testing.T) {
 	assert.Contains(t, result.stdout, "usage: Router")
 	assert.Contains(t, result.stdout, "lock verify")
 	assert.Contains(t, result.stdout, "ext app add")
+	assert.Contains(t, result.stdout, "guide current")
 	assert.NotContains(t, result.stderr, "help requested")
 }
 

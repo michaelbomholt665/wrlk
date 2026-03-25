@@ -17,6 +17,8 @@ go run ./internal/router/tools/wrlk <command>
 | `wrlk lock update` | Update `router.lock` after intentional core changes |
 | `wrlk lock restore` | Restore the previous local snapshot |
 | `wrlk guide` | Print the short operational guide |
+| `wrlk guide current` | Print the currently wired ports and extension inventory |
+| `wrlk guide extension` | Print the detailed extension authoring guide |
 
 ## Common Commands
 
@@ -52,6 +54,18 @@ Restore the last snapshot:
 
 ```bash
 go run ./internal/router/tools/wrlk lock restore
+```
+
+Print the current router inventory:
+
+```bash
+go run ./internal/router/tools/wrlk guide current
+```
+
+Print the extension authoring guide:
+
+```bash
+go run ./internal/router/tools/wrlk guide extension
 ```
 
 ## Notes

@@ -371,6 +371,9 @@ func RouterExtDocTemplate(name string, spec extScaffoldSpec) string {
 
 	return fmt.Sprintf(`// Package %s is a %s.
 //
+// Usage:
+//   - Describe what this extension provides and when a consumer should depend on it.
+//
 // Package Concerns:
 //   - Implements router.Extension only; keep wiring explicit.
 //   - %s

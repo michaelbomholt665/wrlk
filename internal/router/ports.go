@@ -15,4 +15,6 @@ const (
 	PortTertiary PortName = "tertiary"
 	// PortOptional is an example optional provider port.
 	PortOptional PortName = "optional"
+	// PortCLIStyle is the router-native CLI styling capability port.
+	PortCLIStyle PortName = "cli-style"
 )
