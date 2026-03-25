@@ -267,6 +267,9 @@ func TestExtAppAdd_SplicesApplicationExtensions(t *testing.T) {
 
 	assert.Contains(t, src, "/billing\"")
 	assert.Contains(t, src, "&billing.Extension{}")
+
+	extDir := filepath.Join(root, filepath.FromSlash(extExtensionsRelDir), "billing")
+	assert.NoDirExists(t, extDir, "ext app add must not create a router capability extension package")
 }
 
 func TestExtAppAdd_DryRun_NoWrite(t *testing.T) {
@@ -295,6 +298,23 @@ func TestExtAppAdd_HelpFlag_PrintsUsage(t *testing.T) {
 	assert.Equal(t, 0, result.exitCode)
 	assert.Contains(t, result.stdout, "--name")
 	assert.Contains(t, result.stdout, "application router extension")
+}
+
+func TestExtAppAdd_WritesOnlyApplicationComposition(t *testing.T) {
+	root := createExtFixture(t)
+
+	optionalBefore, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(extOptionalRelPath)))
+	require.NoError(t, err)
+
+	result := runWrlkCommand(t, root, "ext", "app", "add", "--name", "billing")
+	require.NoError(t, result.err, result.stderr)
+	require.Equal(t, 0, result.exitCode)
+
+	optionalAfter, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(extOptionalRelPath)))
+	require.NoError(t, err)
+	assert.Equal(t, string(optionalBefore), string(optionalAfter))
+	assert.NotContains(t, result.stdout, "create extension package directory")
+	assert.Contains(t, result.stdout, "wired application router extension")
 }
 
 // — Fixture helpers —

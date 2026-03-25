@@ -24,6 +24,7 @@ type extScaffoldSpec struct {
 	description          string
 	dryRunTarget         string
 	required             bool
+	createPackage        bool
 	snapshotReasonPrefix string
 }
 
@@ -35,6 +36,7 @@ var (
 		description:          "router capability extension",
 		dryRunTarget:         "optional_extensions.go",
 		required:             false,
+		createPackage:        true,
 		snapshotReasonPrefix: "wrlk ext add --name",
 	}
 	applicationExtensionSpec = extScaffoldSpec{
@@ -44,6 +46,7 @@ var (
 		description:          "application router extension",
 		dryRunTarget:         "extensions.go",
 		required:             true,
+		createPackage:        false,
 		snapshotReasonPrefix: "wrlk ext app add --name",
 	}
 )
@@ -70,7 +73,7 @@ func RouterWriteExtUsage(writer io.Writer) error {
 		"usage: Router [--root PATH] ext <subcommand>",
 		"subcommands:",
 		"  add       scaffold a new optional router capability extension package",
-		"  app add   scaffold a new application extension package and wire extensions.go",
+		"  app add   wire a required application extension into extensions.go",
 	}
 
 	for _, line := range lines {
@@ -117,7 +120,7 @@ func RouterWriteExtAppUsage(writer io.Writer) error {
 	lines := []string{
 		"usage: Router [--root PATH] ext app <subcommand>",
 		"subcommands:",
-		"  add   scaffold a new application extension package",
+		"  add   wire a required application extension into extensions.go",
 	}
 
 	for _, line := range lines {
@@ -239,12 +242,6 @@ func RouterAddExtension(
 	stdout io.Writer,
 	spec extScaffoldSpec,
 ) error {
-	extDir := filepath.Join(root, filepath.FromSlash(extExtensionsRelDir), name)
-
-	if _, err := os.Stat(extDir); err == nil {
-		return fmt.Errorf("extension %q already exists at %s", name, filepath.Join(extExtensionsRelDir, name))
-	}
-
 	compositionPath := filepath.Join(root, filepath.FromSlash(spec.compositionRelPath))
 	compositionContent, err := os.ReadFile(compositionPath)
 	if err != nil {
@@ -272,29 +269,37 @@ func RouterAddExtension(
 		return fmt.Errorf("write snapshot before ext scaffold: %w", err)
 	}
 
-	docPath := filepath.Join(extDir, "doc.go")
-	docContent := RouterExtDocTemplate(name, spec)
-	if err := RouterAtomicWriteFile(docPath, []byte(docContent)); err != nil {
-		return fmt.Errorf("write extension doc.go for %s: %w", name, err)
-	}
+	if spec.createPackage {
+		extDir := filepath.Join(root, filepath.FromSlash(extExtensionsRelDir), name)
+		if _, err := os.Stat(extDir); err == nil {
+			return fmt.Errorf("extension %q already exists at %s", name, filepath.Join(extExtensionsRelDir, name))
+		}
 
-	extensionPath := filepath.Join(extDir, "extension.go")
-	extensionContent := RouterExtExtensionTemplate(name, modulePath, spec)
-	if err := RouterAtomicWriteFile(extensionPath, []byte(extensionContent)); err != nil {
-		return fmt.Errorf("write extension.go for %s: %w", name, err)
+		docPath := filepath.Join(extDir, "doc.go")
+		docContent := RouterExtDocTemplate(name, spec)
+		if err := RouterAtomicWriteFile(docPath, []byte(docContent)); err != nil {
+			return fmt.Errorf("write extension doc.go for %s: %w", name, err)
+		}
+
+		extensionPath := filepath.Join(extDir, "extension.go")
+		extensionContent := RouterExtExtensionTemplate(name, modulePath, spec)
+		if err := RouterAtomicWriteFile(extensionPath, []byte(extensionContent)); err != nil {
+			return fmt.Errorf("write extension.go for %s: %w", name, err)
+		}
 	}
 
 	if err := RouterAtomicWriteFile(compositionPath, updatedComposition); err != nil {
 		return fmt.Errorf("write %s: %w", filepath.Base(spec.compositionRelPath), err)
 	}
 
-	if err := RouterWriteExtMessage(
-		stdout,
-		"wrlk: added %s %q at %s\n",
-		spec.description,
-		name,
-		filepath.Join(extExtensionsRelDir, name),
-	); err != nil {
+	successFormat := "wrlk: added %s %q at %s\n"
+	successArgs := []any{spec.description, name, filepath.Join(extExtensionsRelDir, name)}
+	if !spec.createPackage {
+		successFormat = "wrlk: wired %s %q in %s\n"
+		successArgs = []any{spec.description, name, spec.compositionRelPath}
+	}
+
+	if err := RouterWriteExtMessage(stdout, successFormat, successArgs...); err != nil {
 		return fmt.Errorf("write ext scaffold success message: %w", err)
 	}
 
@@ -317,6 +322,9 @@ func RouterInjectExtension(
 	}
 
 	importLine := fmt.Sprintf("\t%q", importPath)
+	if strings.Contains(src, importLine+"\n") || strings.Contains(src, importLine+"\r\n") {
+		return nil, fmt.Errorf("extension %q is already imported in %s", name, compositionVarName)
+	}
 	withImport := src[:importClosingIdx] + "\n" + importLine + src[importClosingIdx:]
 
 	sliceMarker := fmt.Sprintf("var %s = []router.Extension{", compositionVarName)
@@ -332,6 +340,9 @@ func RouterInjectExtension(
 
 	closingBrace += sliceStartIdx
 	entryLine := fmt.Sprintf("\t&%s.Extension{},", name)
+	if strings.Contains(withImport, entryLine+"\n") || strings.Contains(withImport, entryLine+"\r\n") {
+		return nil, fmt.Errorf("extension %q is already wired in %s", name, compositionVarName)
+	}
 	result := withImport[:closingBrace] + "\n" + entryLine + withImport[closingBrace:]
 
 	return []byte(result), nil
@@ -448,10 +459,16 @@ func RouterWriteExtAddDryRunOutput(
 
 	lines := []string{
 		fmt.Sprintf("wrlk dry-run: would add %s %q", spec.description, name),
-		fmt.Sprintf("  %s - create extension package directory", extRelPath),
-		fmt.Sprintf("  %s/doc.go - create package doc", extRelPath),
-		fmt.Sprintf("  %s/extension.go - create Extension struct implementing router.Extension", extRelPath),
 		fmt.Sprintf("  %s - inject import %q and &%s.Extension{}", spec.compositionRelPath, importPath, name),
+	}
+	if spec.createPackage {
+		lines = []string{
+			fmt.Sprintf("wrlk dry-run: would add %s %q", spec.description, name),
+			fmt.Sprintf("  %s - create extension package directory", extRelPath),
+			fmt.Sprintf("  %s/doc.go - create package doc", extRelPath),
+			fmt.Sprintf("  %s/extension.go - create Extension struct implementing router.Extension", extRelPath),
+			fmt.Sprintf("  %s - inject import %q and &%s.Extension{}", spec.compositionRelPath, importPath, name),
+		}
 	}
 
 	for _, line := range lines {
