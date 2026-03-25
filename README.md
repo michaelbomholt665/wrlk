@@ -55,6 +55,7 @@ flowchart TB
 - Boots optional extensions before required application extensions
 - Orders extension startup from declared `Consumes()` and `Provides()` dependencies
 - Publishes one immutable snapshot for lock-free provider resolution
+- Supports router-native CLI output and interaction capabilities through semantic contracts
 - Supports boot-time warnings, fatal failures, rollback hooks, and restricted port access
 - Protects the router kernel with `router.lock` and the `wrlk` scaffolding/verification workflow
 
@@ -118,9 +119,21 @@ Use:
 - `ext app add` to wire an existing application adapter from `internal/adapters/<name>` into `extensions.go`
 - `ext app remove` to unwire an application adapter from `extensions.go`
 
+For the CLI capability split:
+- `PortCLIStyle` should stay owned by `prettystyle` for output concerns such as text, tables, and semantic layouts.
+- `PortCLIChrome` should be owned by `charmcli` for themed text and layout chrome.
+- `PortCLIInteraction` should stay owned by `charmcli` for interactive prompt flows.
+- The app should resolve these capabilities separately instead of trying to stack multiple providers behind one router port.
+
 ## Important Rule
 
 `internal/router/ext/extensions.go` is intentionally app-owned and starts empty. Do not leave sample or unused providers wired there.
+
+## Optional Dependencies
+
+`testify` is used by the repository test suite. Other third-party dependencies, such as renderer libraries used by optional extensions, are only needed when you choose to keep and build those extensions.
+
+If you do not use an optional extension, its dependency is not part of the required application contract. The router core itself remains intentionally small and does not require extension-specific libraries unless you wire and ship that extension.
 
 ## Docs
 
@@ -129,3 +142,7 @@ Use:
 - [CLI Tools](docs/documentation/cli-tools.md)
 - [Architecture](docs/documentation/architecture.md)
 - [Troubleshooting](docs/documentation/troubleshooting.md)
+
+## Example Consumer
+
+- [policycheck](https://github.com/michaelbomholt665/policycheck) is an example repository that uses this router pattern in a real application.

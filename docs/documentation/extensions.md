@@ -25,13 +25,13 @@ Use a **required application extension** only when the app cannot boot without i
 For an extension to be consumable by the app, you need three explicit pieces:
 
 1. A router port in `internal/router/ports.go`
-2. An app-facing interface in `internal/ports/`
+2. A router-native capability interface in `internal/router/capabilities/`
 3. A concrete provider registered by the extension
 
 That split matters:
 
 - the **port** is how the router discovers the capability
-- the **interface** is what the app casts to
+- the **capability interface** is what the app resolves and calls
 - the **provider** is the concrete implementation detail hidden behind the port
 
 Consumers should not import the concrete extension package just to use the capability.
@@ -54,27 +54,32 @@ That updates:
 - `internal/router/registry_imports.go`
 - `internal/router/router.lock`
 
-### 2. Add the App Contract
+### 2. Add the Capability Contract
 
-Create `internal/ports/cli_style.go`:
+Extend `internal/router/capabilities/cli.go`:
 
 ```go
-package ports
+package capabilities
 
-// CLIStyleProvider renders CLI tables for consumers that want styled output.
-type CLIStyleProvider interface {
-	RenderTable(headers []string, rows [][]string) (string, error)
+const (
+	TableKindNormal = "table.normal"
+	LayoutKindPanel = "layout.panel"
+)
+
+// CLIOutputStyler renders semantic CLI output for consumers.
+type CLIOutputStyler interface {
+	StyleText(kind string, input string) (string, error)
+	StyleTable(kind string, headers []string, rows [][]string) (string, error)
+	StyleLayout(kind string, title string, content ...string) (string, error)
 }
 ```
 
 Why this matters:
 
-- the app casts to `ports.CLIStyleProvider`
+- the app resolves `capabilities.ResolveCLIOutputStyler()`
 - the app does not need to know or care that `go-pretty` is the implementation
 - you can swap implementations later without changing consumers
 - canonical capability names belong to the router contract, so the extension translates them to renderer-native style names or options
-
-If `internal/ports/` does not exist yet in the host project, create it with normal package docs and keep it focused on contracts only.
 
 ### 3. Scaffold the Optional Extension
 
@@ -104,27 +109,64 @@ package prettystyle
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/jedib0t/go-pretty/v6/table"
+	"github.com/jedib0t/go-pretty/v6/text"
+
+	"github.com/michaelbomholt665/wrlk/internal/router/capabilities"
 )
 
-// Provider renders styled CLI tables using go-pretty.
+// Provider renders styled CLI text and tables using go-pretty.
 type Provider struct{}
 
-// RenderTable formats headers and rows into a single table string.
-func (p *Provider) RenderTable(headers []string, rows [][]string) (string, error) {
+// StyleText applies router-owned semantic text roles.
+func (p *Provider) StyleText(kind string, input string) (string, error) {
+	switch kind {
+	case "", capabilities.TextKindPlain:
+		return input, nil
+	case capabilities.TextKindHeader:
+		return text.Colors{text.FgHiMagenta, text.Bold}.Sprint(input), nil
+	case capabilities.TextKindInfo:
+		return text.Colors{text.FgHiCyan, text.Bold}.Sprint("[ INFO ] ")+text.Colors{text.FgHiWhite}.Sprint(input), nil
+	case capabilities.TextKindSuccess:
+		return text.Colors{text.FgHiGreen, text.Bold}.Sprint("[  OK  ] ")+text.Colors{text.FgHiWhite}.Sprint(input), nil
+	case capabilities.TextKindWarning:
+		return text.Colors{text.FgHiYellow, text.Bold}.Sprint("[ WARN ] ")+text.Colors{text.FgHiWhite}.Sprint(input), nil
+	case capabilities.TextKindError:
+		return text.Colors{text.FgHiRed, text.Bold}.Sprint("[ ERR  ] ")+text.Colors{text.FgHiWhite}.Sprint(input), nil
+	default:
+		return "", fmt.Errorf("style text: unsupported kind %q", kind)
+	}
+}
+
+// StyleTable formats headers and rows into a single table string.
+func (p *Provider) StyleTable(kind string, headers []string, rows [][]string) (string, error) {
 	writer := table.NewWriter()
 
 	headerRow := make(table.Row, 0, len(headers))
-	for _, header := range headers {
-		headerRow = append(headerRow, header)
+	for index, header := range headers {
+		styledHeader, err := p.StyleText(capabilities.TextKindHeader, header)
+		if err != nil {
+			return "", fmt.Errorf("style table header %d: %w", index, err)
+		}
+		headerRow = append(headerRow, styledHeader)
 	}
 	writer.AppendHeader(headerRow)
+	writer.Style().Format.Header = text.FormatDefault
 
-	for _, row := range rows {
+	switch kind {
+	case capabilities.TableKindCompact:
+		writer.SetStyle(table.StyleLight)
+	case capabilities.TableKindMerged:
+		writer.SetStyle(table.StyleRounded)
+		writer.SetColumnConfigs([]table.ColumnConfig{{Number: 1, AutoMerge: true}})
+	default:
+		writer.SetStyle(table.StyleRounded)
+	}
+
+	for rowIndex, row := range rows {
 		if len(row) != len(headers) {
-			return "", fmt.Errorf("render table: row width %d does not match header width %d", len(row), len(headers))
+			return "", fmt.Errorf("style table: row %d width %d does not match header width %d", rowIndex, len(row), len(headers))
 		}
 
 		renderRow := make(table.Row, 0, len(row))
@@ -134,11 +176,11 @@ func (p *Provider) RenderTable(headers []string, rows [][]string) (string, error
 		writer.AppendRow(renderRow)
 	}
 
-	return strings.TrimRight(writer.Render(), "\n"), nil
+	return writer.Render(), nil
 }
 ```
 
-The provider should satisfy `ports.CLIStyleProvider`.
+The provider should satisfy `capabilities.CLIOutputStyler`.
 
 Important boundary:
 
@@ -218,21 +260,14 @@ package prettystyle
 Where the app needs styled CLI output:
 
 ```go
-provider, err := router.RouterResolveProvider(router.PortCLIStyle)
+styler, err := capabilities.ResolveCLIOutputStyler()
 if err != nil {
 	// Optional capability: degrade gracefully if unavailable.
 	return nil
 }
 
-styler, ok := provider.(ports.CLIStyleProvider)
-if !ok {
-	return &router.RouterError{
-		Code: router.PortContractMismatch,
-		Port: router.PortCLIStyle,
-	}
-}
-
-rendered, err := styler.RenderTable(
+rendered, err := styler.StyleTable(
+	capabilities.TableKindNormal,
 	[]string{"Name", "Status"},
 	[][]string{{"scanner", "ready"}},
 )
@@ -244,9 +279,49 @@ if err != nil {
 This is the part that makes the extension usable by the app:
 
 - the app resolves the capability by port
-- the app depends on the contract, not the implementation
+- the app depends on the router capability contract, not the concrete implementation
 - failure handling matches the extension category
 - canonical capability names stay in the router contract and the extension translates them into renderer-specific patterns
+
+## Prompt Capabilities Follow the Same Pattern
+
+Use a separate router port when the capability is interactive instead of purely visual. In this repository:
+
+- `PortCLIStyle` resolves `capabilities.CLIOutputStyler`
+- `PortCLIChrome` resolves `capabilities.CLIChromeStyler`
+- `PortCLIInteraction` resolves `capabilities.CLIInteractor`
+
+That split lets one optional extension own output rendering, such as `prettystyle`, while another optional extension owns text/layout chrome and prompts, such as `charmcli` with `huh` and `lipgloss`.
+
+Recommended ownership in this repository:
+
+- keep `PortCLIStyle` owned by `prettystyle`
+- keep `PortCLIChrome` owned by `charmcli`
+- keep `PortCLIInteraction` owned by `charmcli`
+- resolve all three capabilities in the app when you want the full CLI UX
+
+That keeps the app API simple and avoids trying to multiplex two concrete providers behind the same router port.
+
+## Testing the Capability
+
+Check that the extension is wired:
+
+```bash
+go run ./internal/router/tools/wrlk guide current
+```
+
+Run the router tests:
+
+```bash
+go test ./internal/tests/router -count=1
+go test ./internal/tests/router/tools/wrlk -count=1
+```
+
+What to expect:
+
+- `guide current` shows `prettystyle (optional)` under optional capability extensions
+- router tests verify the extension boots, resolves through `capabilities.ResolveCLIOutputStyler()`, and formats both text and tables
+- if the capability is unavailable at runtime, app code should degrade gracefully because it is optional
 
 For an optional capability extension, consumers should degrade gracefully when the port is unavailable.
 

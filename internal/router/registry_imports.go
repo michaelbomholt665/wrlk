@@ -12,7 +12,7 @@ var registry atomic.Pointer[routerSnapshot]
 // RouterValidatePortName reports whether the port is declared in the router whitelist.
 func RouterValidatePortName(port PortName) bool {
 	switch port {
-	case PortPrimary, PortSecondary, PortTertiary, PortOptional, PortCLIStyle:
+	case PortPrimary, PortSecondary, PortTertiary, PortOptional, PortCLIStyle, PortCLIChrome, PortCLIInteraction:
 		return true
 	default:
 		return false

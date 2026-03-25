@@ -23,6 +23,7 @@ package ext
 
 import (
 	"github.com/michaelbomholt665/wrlk/internal/router"
+	"github.com/michaelbomholt665/wrlk/internal/router/ext/extensions/charmcli"
 	"github.com/michaelbomholt665/wrlk/internal/router/ext/extensions/prettystyle"
 )
 
@@ -32,4 +33,6 @@ import (
 // if they fail to load.
 var optionalExtensions = []router.Extension{
 	&prettystyle.Extension{},
+
+	&charmcli.Extension{},
 }

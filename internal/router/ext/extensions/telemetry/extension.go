@@ -1,3 +1,5 @@
+// internal\router\ext\extensions\telemetry\extension.go
+
 package telemetry
 
 import (

@@ -5,6 +5,7 @@ import (
 	"sort"
 
 	"github.com/michaelbomholt665/wrlk/internal/router"
+	"github.com/michaelbomholt665/wrlk/internal/router/capabilities"
 	"github.com/michaelbomholt665/wrlk/internal/router/ext"
 
 	"github.com/stretchr/testify/assert"
@@ -58,22 +59,50 @@ func (s *RouterSuite) TestBuildExtensionBundle_ApplicationExtensionsStartEmpty()
 // TestBuildExtensionBundle_OptionalExtensionsArePackageLevel verifies that the
 // optional extensions slice is wired through internal/router/ext/extensions/<name>/
 // sub-packages rather than inline types. It asserts the expected count and that the
-// sole optional extension declares and registers router.PortCLIStyle.
+// optional extension set declares and registers the CLI capability ports.
 func (s *RouterSuite) TestBuildExtensionBundle_OptionalExtensionsArePackageLevel() {
 	optionalBundle, _ := ext.RouterBuildExtensionBundle()
 
-	require.Len(s.T(), optionalBundle, 1, "exactly one optional router capability extension expected")
+	require.Len(s.T(), optionalBundle, 2, "exactly two optional router capability extensions expected")
 
-	capabilityExt := optionalBundle[0]
-	require.NotNil(s.T(), capabilityExt)
+	declaredPorts := make([]router.PortName, 0, len(optionalBundle))
+	registeredPorts := make([]router.PortName, 0, len(optionalBundle))
+	for _, capabilityExt := range optionalBundle {
+		require.NotNil(s.T(), capabilityExt)
 
-	// Validates Provides() declaration matches what is actually registered.
-	declared := routerPortNamesSorted(capabilityExt.Provides())
-	require.Equal(s.T(), []router.PortName{router.PortCLIStyle}, declared)
+		declared := routerPortNamesSorted(capabilityExt.Provides())
+		declaredPorts = append(declaredPorts, declared...)
 
-	registered, err := router.RouterCollectProvidedPorts(capabilityExt)
+		registered, err := router.RouterCollectProvidedPorts(capabilityExt)
+		require.NoError(s.T(), err)
+		registeredPorts = append(registeredPorts, registered...)
+	}
+
+	assert.Equal(
+		s.T(),
+		[]router.PortName{router.PortCLIChrome, router.PortCLIInteraction, router.PortCLIStyle},
+		routerPortNamesSorted(declaredPorts),
+	)
+	assert.Equal(s.T(), routerPortNamesSorted(declaredPorts), routerPortNamesSorted(registeredPorts))
+}
+
+func (s *RouterSuite) TestBootExtensions_ResolvesBundledCLIProviders() {
+	warnings, err := ext.RouterBootExtensions(context.Background())
+
 	require.NoError(s.T(), err)
-	assert.Equal(s.T(), declared, routerPortNamesSorted(registered))
+	assert.Empty(s.T(), warnings)
+
+	outputStyler, outputErr := capabilities.ResolveCLIOutputStyler()
+	require.NoError(s.T(), outputErr)
+	require.NotNil(s.T(), outputStyler)
+
+	chromeStyler, chromeErr := capabilities.ResolveCLIChromeStyler()
+	require.NoError(s.T(), chromeErr)
+	require.NotNil(s.T(), chromeStyler)
+
+	interactor, interactorErr := capabilities.ResolveCLIInteractor()
+	require.NoError(s.T(), interactorErr)
+	require.NotNil(s.T(), interactor)
 }
 
 func routerPortNamesSorted(ports []router.PortName) []router.PortName {
