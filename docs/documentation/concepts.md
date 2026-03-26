@@ -1,6 +1,6 @@
 # Router Concepts
 
-This document explains the core concepts of the router: PortName, Extension interfaces, Registry, and dependency ordering.
+This document explains the core concepts of the router: `PortName`, extension interfaces, the boot `Registry`, restrictions, and dependency ordering.
 
 ## PortName
 
@@ -33,7 +33,7 @@ provider, err := router.RouterResolveProvider(portName)
 
 ## Extension Interface
 
-The `Extension` interface is the core contract that all adapters must implement to register with the router.
+The `Extension` interface is the core contract that router extensions implement to register with the router.
 
 ```go
 type Extension interface {
@@ -134,17 +134,16 @@ func (e *databaseExtension) RouterProvideRegistration(reg *router.Registry) erro
 
 // RouterProvideAsyncRegistration handles async initialization.
 func (e *databaseExtension) RouterProvideAsyncRegistration(reg *router.Registry, ctx context.Context) error {
-    // Connect to database, verify connection, etc.
-    db, err := ConnectWithTimeout(ctx, "connection-string")
-    if err != nil {
+    // Finish initialization that depends on the host context.
+    if err := ConnectWithTimeout(ctx, "connection-string"); err != nil {
         return fmt.Errorf("database connection failed: %w", err)
     }
-    
-    // Update the provider with the connected instance
-    provider := dbProvider{conn: db}
-    return reg.RouterRegisterProvider(router.PortTertiary, provider)
+
+    return nil
 }
 ```
+
+`RouterProvideRegistration` runs first against a staged registry clone. `RouterProvideAsyncRegistration` then runs against the same staged clone before that staged state is committed.
 
 ## ErrorFormattingExtension Interface
 
@@ -210,6 +209,8 @@ For restricted ports that require consumer identity validation:
 func (r *Registry) RouterRegisterPortRestriction(port PortName, allowedConsumerIDs []string) error
 ```
 
+If no restriction is registered for a port, `RouterResolveRestrictedPort` allows any non-empty consumer ID. If a restriction exists, access is granted only when the consumer ID matches an allowed value or the allow list contains `"Any"`.
+
 ## Dependency Ordering
 
 The router performs topological sorting on extensions based on their `Consumes()` declarations. This ensures ports are available before extensions that need them.
@@ -247,7 +248,7 @@ The router automatically orders B after A because B consumes "auth" which A prov
 
 ### Manual Ordering Still Works
 
-If topological sort fails or for simple cases, you can manually order extensions in the slice. The router respects both approaches.
+The router sorts each extension layer before boot. Manual slice order is still the tie-breaker when there is no declared dependency edge.
 
 ## Key Terms Summary
 

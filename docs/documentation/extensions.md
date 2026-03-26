@@ -2,7 +2,11 @@
 
 This guide shows how to build router extensions that are actually usable by the application, not just registered in the router.
 
-The worked example is an optional capability extension that exposes `go-pretty` table rendering to the rest of the app.
+The repository already includes two optional capability extensions:
+- `prettystyle`, which owns `PortCLIStyle`
+- `charmcli`, which owns `PortCLIChrome` and `PortCLIInteraction`
+
+The worked example below uses `prettystyle`.
 
 ## Choose the Right Extension Type
 
@@ -96,7 +100,7 @@ and wires the extension into `internal/router/ext/optional_extensions.go`.
 
 ### 4. Add the Concrete Provider
 
-Add the dependency to `go.mod`:
+Add the dependency to `go.mod` if the extension needs one:
 
 ```bash
 go get github.com/jedib0t/go-pretty/v6/table
@@ -242,12 +246,12 @@ Example:
 
 ```go
 // Package prettystyle is a router capability extension that registers an optional
-// CLI table-rendering provider for application consumers.
+// CLI output provider for router consumers.
 //
 // Usage:
-//   - Depend on this extension when the app wants styled CLI table output without
-//     coupling consumers directly to go-pretty.
-//   - Resolve router.PortCLIStyle and cast the provider to ports.CLIStyleProvider.
+//   - Depend on this extension when callers want styled CLI text, tables, or
+//     simple semantic layouts.
+//   - Resolve router.PortCLIStyle through internal/router/capabilities.
 //
 // Package Concerns:
 //   - Required() must remain false because styled output is optional infrastructure.
@@ -313,14 +317,14 @@ go run ./internal/router/tools/wrlk guide current
 Run the router tests:
 
 ```bash
-go test ./internal/tests/router -count=1
-go test ./internal/tests/router/tools/wrlk -count=1
+go test ./internal/tests/router/... -count=1
+go test ./internal/tests/router/tools/wrlk/... -count=1
 ```
 
 What to expect:
 
 - `guide current` shows `prettystyle (optional)` under optional capability extensions
-- router tests verify the extension boots, resolves through `capabilities.ResolveCLIOutputStyler()`, and formats both text and tables
+- router tests verify the extension boots, resolves through `capabilities.ResolveCLIOutputStyler()`, and formats text, tables, and layouts
 - if the capability is unavailable at runtime, app code should degrade gracefully because it is optional
 
 For an optional capability extension, consumers should degrade gracefully when the port is unavailable.

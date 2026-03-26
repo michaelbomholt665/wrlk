@@ -19,6 +19,7 @@ go run ./internal/router/tools/wrlk <command>
 | `wrlk lock verify` | Verify `router.lock` |
 | `wrlk lock update` | Update `router.lock` after intentional core changes |
 | `wrlk lock restore` | Restore the previous local snapshot |
+| `wrlk live run` | Start a bounded live verification session |
 | `wrlk guide` | Print the short operational guide |
 | `wrlk guide current` | Print the currently wired ports and extension inventory |
 | `wrlk guide extension` | Print the detailed extension authoring guide |
@@ -79,8 +80,16 @@ Print the extension authoring guide:
 go run ./internal/router/tools/wrlk guide extension
 ```
 
+Start a live verification session:
+
+```bash
+go run ./internal/router/tools/wrlk live run --expect scanner-a --expect scanner-b
+```
+
 ## Notes
 
 - `ext add`, `ext install`, `ext remove`, `ext app add`, and `ext app remove` support `--dry-run`.
+- `wrlk add` also supports `--dry-run`.
 - `extensions.go` is app-owned and should contain only the required extensions you actually want booted.
 - `optional_extensions.go` is for non-fatal capability extensions only.
+- `lock verify` tracks only `internal/router/extension.go` and `internal/router/registry.go`.

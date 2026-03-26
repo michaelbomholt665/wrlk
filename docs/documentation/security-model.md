@@ -11,7 +11,7 @@ The router is a **development integrity and structural constraint system**, not 
 | External package reachability | `internal/` placement                    | Encapsulation boundary inside host project |
 | Typo / wrong port literals    | Typed `PortName` + whitelist validation  | Compile-time correctness guard             |
 | Late mutation after boot      | Immutable published snapshot             | Prevents post-boot registration            |
-| Port shadowing                | Duplicate registration rejection         | First provider wins                        |
+| Port shadowing                | Duplicate registration rejection         | Duplicate provider registration is blocked |
 | Frozen file drift             | `router.lock` + host tooling             | Development integrity control              |
 | Async boot deadlock           | Host-supplied `ctx` timeout/cancellation | Operational startup safeguard              |
 
@@ -62,6 +62,8 @@ The router provides development workflow constraints specifically designed to gu
 
 - `internal/router/extension.go` - Extension interfaces and loading logic
 - `internal/router/registry.go` - Atomic publication and resolution
+- `internal/router/error_surface.go` - Structured error rendering
+- `internal/router/capabilities.go` - Declared capability manifest
 
 **Files designed for host project modification:**
 
@@ -102,7 +104,7 @@ The mutable wiring surface is intentionally narrow:
 - `ports.go` should contain port declarations only
 - `registry_imports.go` should contain the whitelist and registry declaration only
 - `ext/optional_extensions.go` should remain wiring-focused
-- `ext/extensions.go` is the required application boot composition layer and should contain only explicit app-owned wiring
+- `ext/extensions.go` is the required application boot composition layer and boot-policy wrapper, and should remain explicit
 
 The main wiring files are designed to stay simple and auditable, typically containing:
 - Constant declarations

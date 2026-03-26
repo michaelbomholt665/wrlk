@@ -6,16 +6,18 @@ This document provides a deep dive into the router's folder structure, the froze
 
 ```
 internal/router/
-├── MUTABLE — host project wiring (4 files)
+├── MUTABLE — host project wiring
 │   ├── ports.go              # PortName constants (whitelist)
-│   ├── registry_imports.go   # Imports + RouterValidatePortName + atomic registry declaration
+│   ├── registry_imports.go   # RouterValidatePortName + atomic registry declaration
 │   └── ext/
-│       ├── extensions.go         # Required application extensions + thin RouterBootExtensions wrapper
+│       ├── extensions.go          # Required application extensions + RouterBootExtensions wrapper
 │       └── optional_extensions.go # Optional capability extensions wired ahead of application extensions
 │
 ├── FROZEN — never edit directly
 │   ├── registry.go           # Atomic publication + RouterResolveProvider
 │   └── extension.go          # Extension interfaces + RouterLoadExtensions
+│   ├── error_surface.go      # Router error rendering
+│   └── capabilities.go       # Declared capability manifest
 │
 ├── router.lock               # NDJSON integrity checksums (git committed)
 └── tools/wrlk/
@@ -91,20 +93,20 @@ package ext
 
 import (
     "your-project/internal/router"
-    "your-project/internal/router/ext/extensions/telemetry"
-    // Add optional extension imports here
+    "github.com/michaelbomholt665/wrlk/internal/router/ext/extensions/charmcli"
+    "github.com/michaelbomholt665/wrlk/internal/router/ext/extensions/prettystyle"
 )
 
 var optionalExtensions = []router.Extension{
-    &telemetry.Extension{},
-    // Wired with `wrlk ext add` or `wrlk ext install`.
+    &prettystyle.Extension{},
+    &charmcli.Extension{},
 }
 ```
 
 This file owns the optional extension layer only. Optional extensions boot before
 application extensions and may provide ports consumed during application boot.
 
-### `ext/extensions.go` — MUTABLE (Required Application Wiring + Thin Wrapper)
+### `ext/extensions.go` — MUTABLE (Required Application Wiring + Boot Policy Wrapper)
 
 ```go
 package ext
@@ -120,17 +122,26 @@ var extensions = []router.Extension{
     // Wired with `wrlk ext app add` or maintained manually.
 }
 
-// RouterBootExtensions wires optional extensions first, then application
-// extensions, and publishes the atomic registry on full success only.
+// RouterBootExtensions validates boot policy, wires optional extensions first,
+// then application extensions, and publishes the atomic registry on full success only.
 func RouterBootExtensions(ctx context.Context) ([]error, error) {
-    return router.RouterLoadExtensions(optionalExtensions, extensions, ctx)
+    if err := validateRouterBootPolicy(); err != nil {
+        return nil, err
+    }
+
+    optionalBundle, applicationBundle := RouterBuildExtensionBundle()
+    return router.RouterLoadExtensions(optionalBundle, applicationBundle, ctx)
 }
 ```
+
+`validateRouterBootPolicy` currently enforces:
+- `ROUTER_PROFILE` must match `WRLK_ENV` when both are set
+- `ROUTER_ALLOW_ANY=true` is rejected when `WRLK_ENV=prod`
 
 ### `extension.go` — FROZEN
 
 Contains:
-- [`Extension`](concepts.md#extension-interface) / [`AsyncExtension`](concepts.md#asyncextension-interface) / [`ErrorFormattingExtension`](concepts.md#errorformattingextension-interface) interfaces
+- [`Extension`](concepts.md#extension-interface) / [`AsyncExtension`](concepts.md#asyncextension-interface) / [`RollbackExtension`](concepts.md#rollbackextension-interface) / [`ErrorFormattingExtension`](concepts.md#errorformattingextension-interface) interfaces
 - [`RouterError`](api-reference.md#routererror), [`RouterErrorFormatter`](concepts.md#error-formatting), [`Registry`](concepts.md#registry-handle) handle
 - [`RouterLoadExtensions(optionalExts []Extension, exts []Extension, ctx context.Context) ([]error, error)`](api-reference.md#routerloadextensions)
 
@@ -138,8 +149,7 @@ Contains:
 
 ### `registry.go` — FROZEN
 
-Contains atomic publication logic + [`RouterResolveProvider`](api-reference.md#routerresolveprovider).  
-`RouterRegisterProvider` exists only as internal implementation used by the `Registry` handle (not public API).
+Contains provider resolution, restricted resolution, and access checks over the published atomic snapshot.
 
 ## Bootstrap Flow
 
@@ -186,7 +196,7 @@ sequenceDiagram
 ### Bootstrap Semantics
 
 - `ctx` is required so async extension boot respects host timeout/cancellation policy
-- Hardcoding `context.Background()` inside the router is forbidden
+- `RouterLoadExtensions` falls back to `context.Background()` only when the caller passes `nil`
 - A deadlocked or stalled async extension must be able to fail startup through host timeout policy
 - Concurrent boot attempts are a host programming error
 - Repeated boot after successful initialization returns `MultipleInitializations`
@@ -200,7 +210,7 @@ sequenceDiagram
 
 - Boot builds registrations into a **local** temporary map.
 - `Registry` handle writes only to this local map.
-- On full success the map is published **exactly once** via `registry.Store(...)`.
+- On full success the map is published **exactly once** via `registry.CompareAndSwap(nil, snapshot)`.
 - `RouterResolveProvider` checks only the atomic pointer: `nil` = not booted (`RegistryNotBooted`), non-nil = immutable snapshot (lock-free reads).
 - Failed boot discards the local map. Nothing is published.
 - `MultipleInitializations` is returned if boot is attempted again after successful publication.
@@ -242,7 +252,7 @@ earlier phase, boot fails under the existing dependency/order semantics.
 - Host supplies `ctx` for timeout/cancellation.
 - Mutable files = `ports.go` + `registry_imports.go` + `ext/optional_extensions.go` + `ext/extensions.go`.
 - Frozen files contain contracts + orchestration + publication logic only.
-- Zero external dependencies.
+- The router core uses only the standard library; optional extensions may use third-party libraries.
 - `Registry` handle is the only write surface for extensions.
 - Single atomic publication is the only runtime source of truth.
 - `PortContractMismatch` belongs in router for consistent structured errors.

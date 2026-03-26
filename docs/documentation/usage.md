@@ -22,6 +22,7 @@ Rules:
 - Boot before workers or request handlers start.
 - Pass a real context with timeout or cancellation.
 - Treat returned warnings as optional-extension failures.
+- Boot policy validation also runs here. In this repo, `ROUTER_PROFILE` must match `WRLK_ENV` when both are set, and `ROUTER_ALLOW_ANY=true` is rejected in `prod`.
 
 ## Resolve Providers
 
@@ -43,6 +44,14 @@ if !ok {
 ```
 
 Use `RouterResolveRestrictedPort` when the port has access restrictions.
+
+For router-native CLI capabilities, prefer the typed resolvers in `internal/router/capabilities/`:
+
+```go
+styler, err := capabilities.ResolveCLIOutputStyler()
+chrome, err := capabilities.ResolveCLIChromeStyler()
+interactor, err := capabilities.ResolveCLIInteractor()
+```
 
 ## Add a Port
 
@@ -90,10 +99,11 @@ Use `--dry-run` with `ext add`, `ext install`, `ext remove`, `ext app add`, or `
 ## Layout
 
 - `internal/ports/`: port contracts
+- `internal/router/capabilities/`: router-native capability contracts and typed resolvers
 - `internal/router/ports.go`: port names
 - `internal/router/ext/optional_extensions.go`: optional capability wiring
-- `internal/router/ext/extensions.go`: required application wiring
-- `internal/router/registry.go`: provider resolution
+- `internal/router/ext/extensions.go`: required application wiring and boot policy wrapper
+- `internal/router/registry.go`: provider resolution and restricted resolution
 
 ## Rule
 

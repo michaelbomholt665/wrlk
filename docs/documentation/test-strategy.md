@@ -10,15 +10,17 @@ All router tests are located in `internal/tests/router/`:
 internal/tests/router/
 ├── helpers_test.go          # MockExtension, RouterSuite setup
 ├── registration_test.go     # Port registration tests (Phase 1)
-├── resolution_test.go      # Provider resolution tests (Phase 2)
-├── boot_test.go            # Router boot lifecycle tests (Phase 3)
-├── restricted_test.go      # Restricted port access control tests
-├── ext_boot_test.go        # Extension boot policy tests
-├── benchmark_test.go       # Performance benchmarks
+├── resolution_test.go       # Provider resolution tests (Phase 2)
+├── boot_test.go             # Router boot lifecycle tests (Phase 3)
+├── restricted_test.go       # Restricted port access control tests
+├── ext_boot_test.go         # Extension boot policy tests
+├── capabilities_test.go     # Capability resolver tests
+├── benchmark_test.go        # Performance benchmarks
 └── tools/wrlk/             # CLI tool tests
     ├── main_test.go        # lock verify/update/restore tests
     ├── live_test.go        # live run session tests
-    └── ext_test.go         # wrlk ext add/install/remove and ext app add/remove tests
+    ├── ext_test.go         # wrlk ext add/install/remove and ext app add/remove tests
+    └── portgen_test.go     # wrlk add tests
 ```
 
 ## Test Framework
@@ -163,6 +165,15 @@ Tests environment and policy enforcement at boot:
 | `TestBuildExtensionBundle_OptionalExtensionsArePackageLevel` | Optional extensions are package-level         |
 | `TestBuildExtensionBundle_ApplicationExtensionsStartEmpty`   | Required application wiring starts empty      |
 
+### Capability Tests (`capabilities_test.go`)
+
+| Test | What It Verifies |
+| --- | --- |
+| `TestResolveCLIOutputStyler_ReturnsTypedProvider` | `PortCLIStyle` resolves through the typed capability helper |
+| `TestResolveCLIChromeStyler_ReturnsTypedProvider` | `PortCLIChrome` resolves through the typed capability helper |
+| `TestResolveCLIInteractor_ReturnsTypedProvider` | `PortCLIInteraction` resolves through the typed capability helper |
+| `TestResolveCapability_PortContractMismatch` | Wrong provider shape returns `PortContractMismatch` |
+
 ### Benchmarks (`benchmark_test.go`)
 
 Performance validation tests:
@@ -174,7 +185,7 @@ Performance validation tests:
 
 Run benchmarks with:
 ```bash
-go test -tags test -bench=. -benchtime=3s ./internal/tests/router/...
+go test -bench=. -benchtime=3s ./internal/tests/router/...
 ```
 
 ## CLI Tool Tests
@@ -227,19 +238,17 @@ go test -tags test -bench=. -benchtime=3s ./internal/tests/router/...
 
 ```bash
 # All router tests
-go test -tags test ./internal/tests/router/... -race -v
+go test ./internal/tests/router/... -race -v
 
 # Specific test file
-go test -tags test ./internal/tests/router/... -run TestRegistration -race -v
+go test ./internal/tests/router/... -run TestRegistration -race -v
 
 # CLI tool tests only
-go test -tags test ./internal/tests/router/tools/wrlk/... -race -v
+go test ./internal/tests/router/tools/wrlk/... -race -v
 
 # Benchmarks
-go test -tags test -bench=. -benchtime=3s ./internal/tests/router/...
+go test -bench=. -benchtime=3s ./internal/tests/router/...
 ```
-
-The `-tags test` flag is required to expose the `RouterResetForTest()` helper in `registry.go`.
 
 ## Assert/Require Decision Rule
 

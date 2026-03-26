@@ -1,13 +1,13 @@
 # Router Documentation
 
-The Router is a zero-dependency dependency broker for Hexagonal Architecture in Go. It lives in `internal/router/` and provides a centralized port registry with AI development guardrails.
+The Router is a zero-internal-dependency port registry and extension boot layer for Go applications. It lives in `internal/router/` and provides centralized port registration, explicit extension wiring, and guardrails around router evolution.
 
 ## What Is the Router?
 
 The Router is a compile-time dependency injection system that:
 
 - **Centralizes port declarations** - All port names are defined in one place (`ports.go`)
-- **Wires adapters explicitly** - Required adapters live in `ext/extensions.go`; optional capability extensions live in `ext/optional_extensions.go`
+- **Wires extensions explicitly** - Required application extensions live in `ext/extensions.go`; optional capability extensions live in `ext/optional_extensions.go`
 - **Prevents coupling creep** - Frozen/mutable file split stops accidental modifications to core contracts
 - **Provides lock-free reads** - Uses `atomic.Pointer` for O(1) provider resolution after boot
 
@@ -62,31 +62,22 @@ func main() {
 }
 ```
 
-2. **Resolve providers** by port name:
+2. **Resolve providers** through a port or a typed capability resolver:
 
 ```go
-import (
-    "your-project/internal/router"
-    "your-project/internal/ports"
-)
+import "github.com/michaelbomholt665/wrlk/internal/router/capabilities"
 
-// Get the primary provider
-provider, err := router.RouterResolveProvider(router.PortPrimary)
+styler, err := capabilities.ResolveCLIOutputStyler()
 if err != nil {
     return err
 }
 
-// Cast to the port interface
-primary, ok := provider.(ports.PrimaryProvider)
-if !ok {
-    return &router.RouterError{
-        Code: router.PortContractMismatch,
-        Port: router.PortPrimary,
-    }
+rendered, err := styler.StyleText(capabilities.TextKindInfo, "router booted")
+if err != nil {
+    return err
 }
 
-// Use the provider
-result := primary.DoSomething()
+_ = rendered
 ```
 
 ### Adding a New Port
@@ -112,17 +103,17 @@ See [CLI Tools](cli-tools.md) for more commands.
 | [Concepts](concepts.md)               | Core concepts: PortName, Extension interfaces, Registry, dependency ordering |
 | [API Reference](api-reference.md)     | API documentation for all public functions and error codes                   |
 | [Usage Guide](usage.md)               | Step-by-step usage: boot, resolve, extend, add ports                         |
-| [CLI Tools](cli-tools.md)             | CLI commands: wrlk lock, wrlk add, wrlk ext add/install/remove, wrlk ext app add/remove, wrlk guide |
+| [CLI Tools](cli-tools.md)             | CLI commands: `wrlk lock`, `wrlk add`, `wrlk ext`, `wrlk live`, `wrlk guide` |
 | [Extension Authoring](extensions.md)  | Detailed guide for building real optional and app-consumable extensions      |
 | [Troubleshooting](troubleshooting.md) | Common errors, FAQ, error code reference                                     |
 | [Security Model](security-model.md)   | AI guardrails, router.lock, frozen/mutable protection                        |
 
 ## Key Properties
 
-- **Zero external dependencies** - stdlib only
+- **Router core uses the standard library only**
 - **No runtime reflection** - compile-time safe
 - **Lives in `internal/`** - host project encapsulation
-- **Host-controlled policy** - validation, timeout, complexity rules defined by host
+- **Host-controlled boot policy** - environment/profile checks stay at the `ext` layer
 - **Copy-paste bundle** - drop into any Go project
 
 ## Package Structure
@@ -131,14 +122,16 @@ See [CLI Tools](cli-tools.md) for more commands.
 internal/router/
 ├── MUTABLE (host project wiring)
 │   ├── ports.go              # PortName constants
-│   ├── registry_imports.go   # Port validation + atomic registry
+│   ├── registry_imports.go   # Port validation + atomic registry state
 │   ├── ext/
-│   │   ├── extensions.go         # Required application extensions
+│   │   ├── extensions.go          # Required application extensions + boot policy wrapper
 │   │   └── optional_extensions.go # Optional capability extensions
 │
 ├── FROZEN (never edit directly)
 │   ├── extension.go          # Extension interfaces + RouterLoadExtensions
-│   └── registry.go          # Atomic publication + RouterResolveProvider
+│   ├── registry.go           # Provider resolution + restricted resolution
+│   ├── error_surface.go      # Router error rendering
+│   └── capabilities.go       # Declared capability manifest
 │
 ├── router.lock               # Checksums for frozen files
 └── tools/wrlk/              # CLI for port management

@@ -1,52 +1,106 @@
 # Router Package
 
-`internal/router` is a small, zero-dependency composition router for Go applications. It gives the application one explicit place to register providers behind typed port names, boot extensions in dependency order, and publish a single immutable registry snapshot that consumers can resolve from without runtime wiring logic scattered across the codebase.
+`internal/router` is a small port registry and extension boot layer for Go applications. It gives the application one explicit place to register providers behind typed port names, boot extensions in dependency order, and publish one immutable registry snapshot that consumers can resolve from without runtime wiring logic scattered across the codebase.
 
-The package supports two extension types. Router capability extensions add optional infrastructure concerns such as telemetry and other cross-cutting behavior, while app-specific extensions wire the concrete adapters your application actually runs behind its declared ports. The package is intentionally split into a frozen core and an app-owned wiring layer: the core stays contract-blind and fast, `internal/router/ext/optional_extensions.go` owns capability extensions, and `internal/router/ext/extensions.go` owns required application adapter wiring. A local `wrlk` tool and `router.lock` keep changes to the router surface explicit, reviewable, and hard to drift by accident.
+The package supports two extension categories. Optional capability extensions add router-native infrastructure such as CLI styling and interaction, while required application extensions wire the concrete adapters your application actually runs behind its declared ports. The package is intentionally split into a frozen core and an app-owned wiring layer: the core stays contract-blind and fast, `internal/router/ext/optional_extensions.go` owns optional capability wiring, and `internal/router/ext/extensions.go` owns required application adapter wiring plus boot-policy checks. A local `wrlk` tool and `router.lock` keep changes to the router surface explicit, reviewable, and hard to drift by accident.
 
 ## Architecture
 
 ```mermaid
 ---
 config:
-  theme: neutral
-  look: classic
+  layout: dagre
+  look: handDrawn
 ---
-flowchart TB
-    App["Application startup"]
-
-    subgraph Wiring["Wiring Layer"]
-        Ext["internal/router/ext\nBuilds and boots the extension bundle"]
-        Optional["Router capability extensions\nOptional cross-cutting behavior"]
-        Required["App-specific extensions\nConcrete adapter wiring"]
-    end
-
-    subgraph Core["Router Core"]
-        Router["internal/router\nFrozen registry + boot kernel"]
-        Snapshot["Immutable provider snapshot"]
+flowchart LR
+    subgraph Business["Business Logic"]
+        UseCase["internal/<domain>/usecase\nbusiness services"]
+        CLI["cmd/... or internal/app\nentrypoints"]
     end
 
     subgraph Contracts["Contracts"]
-        Ports["internal/ports\nTyped interfaces and port contracts"]
+        AppPorts["internal/ports\napplication port interfaces"]
+        CapPkg["internal/router/capabilities\nrouter-native capability interfaces"]
     end
 
-    subgraph Implementations["Implementations"]
-        Adapters["internal/adapters/*\nConcrete providers"]
+    subgraph RouterMutable["Router Wiring (mutable)"]
+        Ports["internal/router/ports.go\nport whitelist"]
+        Imports["internal/router/registry_imports.go\nport validation + snapshot state"]
+        OptExt["internal/router/ext/optional_extensions.go\noptional capability wiring"]
+        ReqExt["internal/router/ext/extensions.go\nrequired app wiring + boot policy"]
     end
 
-    App --> Ext
-    Ext --> Optional
-    Ext --> Required
-    Optional --> Router
-    Required --> Router
-    Router --> Snapshot
-    Adapters -->|implement| Ports
-    Ext -->|instantiates and registers| Adapters
-    Router -->|resolves by PortName| Ports
+    subgraph RouterCore["Router Core (frozen)"]
+        Extension["internal/router/extension.go\nboot orchestration"]
+        Registry["internal/router/registry.go\nresolve + restricted resolve"]
+        Errors["internal/router/error_surface.go\nstructured errors"]
+        Manifest["internal/router/capabilities.go\ncapability manifest"]
+    end
 
-    Adapters -. depend on router registration API .-> Router
-    Router -. remains blind to concrete implementations .-> Adapters
-    Router -. does not own business contracts .-> Ports
+    subgraph OptionalExts["Optional Capability Extensions"]
+        Pretty["prettystyle\nowns PortCLIStyle"]
+        Charm["charmcli\nowns PortCLIChrome + PortCLIInteraction"]
+    end
+
+    subgraph Adapters["Application Adapters"]
+        Adapter["internal/adapters/<name>\nrequired app adapter"]
+    end
+
+    CLI -->|"boots once"| ReqExt
+    ReqExt -->|"calls"| Extension
+    ReqExt -->|"reads env policy"| Extension
+    OptExt -->|"supplies optional bundle"| Extension
+    ReqExt -->|"supplies required bundle"| Extension
+    Ports -->|"declares valid PortName values"| Extension
+    Imports -->|"RouterValidatePortName + atomic snapshot"| Extension
+
+    Extension -->|"publishes snapshot"| Registry
+    Extension -->|"loads first"| Pretty
+    Extension -->|"loads first"| Charm
+    Extension -->|"loads second"| Adapter
+
+    Pretty -->|"registers provider by port"| Extension
+    Charm -->|"registers provider by port"| Extension
+    Adapter -->|"registers provider by port"| Extension
+
+    Pretty -->|"implements"| CapPkg
+    Charm -->|"implements"| CapPkg
+    Adapter -->|"implements"| AppPorts
+
+    UseCase -->|"may import and use"| AppPorts
+    UseCase -->|"may import typed capability resolvers"| CapPkg
+    CLI -->|"may resolve providers"| Registry
+    UseCase -->|"may resolve by port, then cast"| Registry
+
+    UseCase -. "ACCEPTED: import internal/ports" .-> AppPorts
+    UseCase -. "ACCEPTED: import internal/router/capabilities" .-> CapPkg
+    UseCase -. "ACCEPTED: import internal/router for resolution only" .-> Registry
+
+    UseCase ==> |"ILLEGAL: do not import concrete adapters"| Adapter
+    UseCase ==> |"ILLEGAL: do not import extension packages"| Pretty
+    UseCase ==> |"ILLEGAL: do not import extension packages"| Charm
+    Adapter ==> |"ILLEGAL: adapters must not import adapters"| Adapter
+    AppPorts ==> |"ILLEGAL: ports cannot import implementations"| Adapter
+    CapPkg ==> |"ILLEGAL: capability contracts do not import extensions"| Pretty
+    RouterCore ==> |"ILLEGAL: router core stays blind to adapters"| Adapter
+    RouterCore ==> |"ILLEGAL: router core stays blind to business logic"| UseCase
+
+    classDef business fill:#f4f1de,stroke:#7a5c3e,color:#3d2f1f,stroke-width:2px
+    classDef contracts fill:#dff3e3,stroke:#2d6a4f,color:#1b4332,stroke-width:2px
+    classDef mutable fill:#fff3bf,stroke:#b08900,color:#6b4f00,stroke-width:2px
+    classDef core fill:#dceeff,stroke:#1d4ed8,color:#123b7a,stroke-width:2px
+    classDef ext fill:#ffe5d9,stroke:#c2410c,color:#7c2d12,stroke-width:2px
+    classDef adapters fill:#fce7f3,stroke:#be185d,color:#831843,stroke-width:2px
+
+    class UseCase,CLI business
+    class AppPorts,CapPkg contracts
+    class Ports,Imports,OptExt,ReqExt mutable
+    class Extension,Registry,Errors,Manifest core
+    class Pretty,Charm ext
+    class Adapter adapters
+
+    linkStyle 17,18,19 stroke:#2d6a4f,stroke-width:2px,stroke-dasharray: 4 4
+    linkStyle 20,21,22,23,24,25,26 stroke:#dc2626,stroke-width:3px,stroke-dasharray: 6 6
 ```
 
 ## What It Does
@@ -56,15 +110,17 @@ flowchart TB
 - Orders extension startup from declared `Consumes()` and `Provides()` dependencies
 - Publishes one immutable snapshot for lock-free provider resolution
 - Supports router-native CLI output and interaction capabilities through semantic contracts
-- Supports boot-time warnings, fatal failures, rollback hooks, and restricted port access
+- Supports boot-time warnings, fatal failures, rollback hooks, restricted port access, and boot-policy validation
 - Protects the router kernel with `router.lock` and the `wrlk` scaffolding/verification workflow
 
 ## Key Files
 
 - `internal/router/extension.go`: core boot contracts and orchestration
-- `internal/router/registry.go`: provider resolution
+- `internal/router/registry.go`: provider resolution and restricted resolution
+- `internal/router/error_surface.go`: router error rendering
+- `internal/router/capabilities.go`: declared capability manifest
 - `internal/router/ext/optional_extensions.go`: optional capability wiring
-- `internal/router/ext/extensions.go`: required application wiring
+- `internal/router/ext/extensions.go`: required application wiring and boot policy wrapper
 - `internal/router/tools/wrlk`: port and extension scaffolding, lock commands
 
 ## Basic Use
@@ -102,6 +158,14 @@ if !ok {
 }
 ```
 
+For router-native CLI capabilities, prefer the typed resolvers in `internal/router/capabilities/`:
+
+```go
+styler, err := capabilities.ResolveCLIOutputStyler()
+chrome, err := capabilities.ResolveCLIChromeStyler()
+interactor, err := capabilities.ResolveCLIInteractor()
+```
+
 ## CLI
 
 ```bash
@@ -110,6 +174,7 @@ go run ./internal/router/tools/wrlk ext add --name telemetry
 go run ./internal/router/tools/wrlk ext install --name telemetry
 go run ./internal/router/tools/wrlk ext app add --name billing
 go run ./internal/router/tools/wrlk lock verify
+go run ./internal/router/tools/wrlk live run --expect scanner-a --expect scanner-b
 ```
 
 Use:
@@ -118,6 +183,7 @@ Use:
 - `ext remove` to unwire an optional capability extension from `optional_extensions.go`
 - `ext app add` to wire an existing application adapter from `internal/adapters/<name>` into `extensions.go`
 - `ext app remove` to unwire an application adapter from `extensions.go`
+- `live run` to start a bounded live verification session
 
 For the CLI capability split:
 - `PortCLIStyle` should stay owned by `prettystyle` for output concerns such as text, tables, and semantic layouts.
@@ -128,6 +194,8 @@ For the CLI capability split:
 ## Important Rule
 
 `internal/router/ext/extensions.go` is intentionally app-owned and starts empty. Do not leave sample or unused providers wired there.
+
+Business logic should import `internal/ports` and, when needed, `internal/router/capabilities` or `internal/router` for resolution. It should not import concrete adapters or concrete extension packages.
 
 ## Optional Dependencies
 

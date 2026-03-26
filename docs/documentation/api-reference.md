@@ -2,6 +2,8 @@
 
 This document provides complete API documentation for all public router functions and types.
 
+The signatures and behaviors below are aligned with the current code in `internal/router/` and `internal/router/ext/`.
+
 ## Core Functions
 
 ### RouterResolveProvider
@@ -97,7 +99,7 @@ warnings, err := ext.RouterBootExtensions(ctx)
 
 **Returns:**
 - `[]error` - Warnings from optional extensions that failed to load (boot continues)
-- `error` - Fatal error if boot failed
+- `error` - Fatal error if boot failed or boot policy validation failed
 
 **Example:**
 
@@ -137,6 +139,13 @@ func RouterLoadExtensions(
 - `[]error` - Warnings from extensions that failed (if optional)
 - `error` - Fatal error if boot failed
 
+**Behavior:**
+- sorts each layer by declared `Consumes()` dependencies
+- stages registration into a local registry clone
+- commits each successful extension into staged state
+- publishes the final snapshot with `registry.CompareAndSwap`
+- rolls back started extensions that implement `RollbackExtension` if boot aborts
+
 ---
 
 ## Registry Handle Methods
@@ -170,7 +179,9 @@ func (r *Registry) RouterRegisterPortRestriction(port PortName, allowedConsumerI
 
 **Parameters:**
 - `port` - The port to restrict
-- `allowedConsumerIDs` - List of consumer IDs that can access this port. Use "Any" to allow all.
+- `allowedConsumerIDs` - List of consumer IDs that can access this port. Use `"Any"` to allow all.
+
+If no restriction is registered for a port, `RouterResolveRestrictedPort` still requires a non-empty consumer ID but otherwise allows access.
 
 **Example:**
 
@@ -215,6 +226,13 @@ type RouterError struct {
 
 Structured router error type.
 
+Methods:
+
+```go
+func (e *RouterError) Error() string
+func (e *RouterError) Unwrap() error
+```
+
 ### Extension Interface
 
 ```go
@@ -223,6 +241,17 @@ type Extension interface {
     Consumes() []PortName
     Provides() []PortName
     RouterProvideRegistration(reg *Registry) error
+}
+```
+
+---
+
+### AsyncExtension Interface
+
+```go
+type AsyncExtension interface {
+    Extension
+    RouterProvideAsyncRegistration(reg *Registry, ctx context.Context) error
 }
 ```
 
@@ -238,6 +267,21 @@ type RollbackExtension interface {
 ```
 
 Used only for boot rollback when startup aborts after work has already begun.
+
+---
+
+### ErrorFormattingExtension Interface
+
+```go
+type ErrorFormattingExtension interface {
+    Extension
+    ErrorFormatter() RouterErrorFormatter
+}
+```
+
+```go
+type RouterErrorFormatter func(err error) error
+```
 
 ---
 

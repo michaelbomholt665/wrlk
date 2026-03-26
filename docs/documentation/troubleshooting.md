@@ -65,7 +65,7 @@ var optionalExtensions = []router.Extension{
 
 **Error:** `port "foo" is not a declared port`
 
-**Cause:** The port is declared in `ports.go` but not added to the validation function in `registry_imports.go`.
+**Cause:** The extension tried to register a port that is not in the whitelist enforced by `RouterValidatePortName`.
 
 **Fix:**
 
@@ -109,6 +109,10 @@ var extensions = []router.Extension{
 ```
 
 Only one extension should register each port.
+
+This can fail because:
+- two different extensions both return the same port from `Provides()`
+- an extension registers a port that was already staged by an earlier extension
 
 ---
 
@@ -270,14 +274,18 @@ Register the consumer during boot in your extension:
 ```go
 func (e *Extension) RouterProvideRegistration(reg *router.Registry) error {
     // Register provider
-    reg.RouterRegisterProvider(router.PortConfig, &ConfigProvider{})
+    if err := reg.RouterRegisterProvider(router.PortConfig, &ConfigProvider{}); err != nil {
+        return fmt.Errorf("register config provider: %w", err)
+    }
 
     // Allow specific consumers
-    reg.RouterRegisterPortRestriction(router.PortConfig, []string{
+    if err := reg.RouterRegisterPortRestriction(router.PortConfig, []string{
         "admin-service",
         "config-service",
         "my-service",  // Add your consumer here
-    })
+    }); err != nil {
+        return fmt.Errorf("restrict config port: %w", err)
+    }
 
     // Or allow all consumers
     // reg.RouterRegisterPortRestriction(router.PortConfig, []string{"Any"})
@@ -292,7 +300,7 @@ func (e *Extension) RouterProvideRegistration(reg *router.Registry) error {
 
 ### Checksum Mismatch
 
-**Error:** `router.lock: checksum mismatch for internal/router/extension.go`
+**Error:** `router lock verify failed: checksum mismatch in internal/router/extension.go`
 
 **Cause:** The frozen router files have been modified.
 
@@ -320,6 +328,7 @@ Use optional extensions for:
 - Telemetry and monitoring
 - Logging enhancements
 - Metrics collection
+- CLI capabilities such as styling, chrome, or interactive prompts
 - Cross-cutting concerns that shouldn't block startup
 
 Use application extensions for:
@@ -329,7 +338,7 @@ Use application extensions for:
 Wire them with:
 
 ```bash
-go run ./internal/router/tools/wrlk ext app add --name Billing
+go run ./internal/router/tools/wrlk ext app add --name billing
 ```
 
 ---
@@ -346,6 +355,20 @@ This handles:
 - Adding the constant to `ports.go`
 - Adding validation in `registry_imports.go`
 - Updating `router.lock`
+
+---
+
+### RouterEnvironmentMismatch / RouterProfileInvalid
+
+**Errors:**
+- `router profile does not match the runtime environment: ROUTER_PROFILE="..." does not match WRLK_ENV="..."`
+- `router profile is invalid: ROUTER_ALLOW_ANY=true is not allowed when WRLK_ENV="prod"`
+
+**Cause:** `ext.RouterBootExtensions` validates boot policy before calling `router.RouterLoadExtensions`.
+
+**Fix:**
+- Align `ROUTER_PROFILE` with `WRLK_ENV`, or unset one of them.
+- Do not set `ROUTER_ALLOW_ANY=true` when `WRLK_ENV=prod`.
 
 ---
 
@@ -394,26 +417,13 @@ Test extensions in isolation:
 func TestMyExtension(t *testing.T) {
     ext := &myExtension{}
 
-    // Test Required()
     assert.True(t, ext.Required())
-
-    // Test Provides()
     assert.Equal(t, []router.PortName{router.PortMy}, ext.Provides())
-
-    // Test Consumes()
     assert.Empty(t, ext.Consumes())
-
-    // Test RouterProvideRegistration
-    localPorts := make(map[router.PortName]router.Provider)
-    reg := &router.Registry{ports: &localPorts}
-
-    err := ext.RouterProvideRegistration(reg)
-    require.NoError(t, err)
-
-    provider := localPorts[router.PortMy]
-    assert.NotNil(t, provider)
 }
 ```
+
+Also test the real integration path through `router.RouterLoadExtensions` or `ext.RouterBootExtensions`; direct construction of `router.Registry` is not available outside the `router` package.
 
 ---
 
