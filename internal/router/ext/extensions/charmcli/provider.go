@@ -119,11 +119,7 @@ func (p *Provider) StyleLayout(kind string, title string, content ...string) (st
 }
 
 // StyleTable is intentionally unsupported for charmcli; use prettystyle for tables.
-func (p *Provider) StyleTable(kind string, headers []string, rows [][]string) (string, error) {
-	_ = kind
-	_ = headers
-	_ = rows
-
+func (p *Provider) StyleTable(_ string, _ []string, _ [][]string) (string, error) {
 	return "", fmt.Errorf("style table: charmcli does not render tables; use prettystyle")
 }
 

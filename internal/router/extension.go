@@ -209,7 +209,7 @@ func RouterLoadExtensions(
 	}
 	warnings = append(warnings, applicationWarnings...)
 
-	snapshot := &routerSnapshot{
+	snapshot := &routerRegistrySnapshot{
 		providers:    localPorts,
 		restrictions: localRestrictions,
 	}

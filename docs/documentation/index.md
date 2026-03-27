@@ -7,7 +7,7 @@ The Router is a zero-internal-dependency port registry and extension boot layer 
 The Router is a compile-time dependency injection system that:
 
 - **Centralizes port declarations** - All port names are defined in one place (`ports.go`)
-- **Wires extensions explicitly** - Required application extensions generate into `ext/extensions.go`; optional capability extensions generate into `ext/optional_extensions.go`
+- **Wires extensions explicitly** - Required application extensions generate into `ext/extensions.go` and may be empty; optional capability extensions generate into `ext/optional_extensions.go`
 - **Uses manifests as the edit surface** - Router-owned declarations live in `router_manifest.go` and `ext/app_manifest.go`
 - **Prevents coupling creep** - Frozen/mutable file split stops accidental modifications to core contracts
 - **Provides lock-free reads** - Uses `atomic.Pointer` for O(1) provider resolution after boot
@@ -28,7 +28,7 @@ The Router solves this by making dependency wiring an auditable declaration surf
 
 ### Secondary Problem Solved: Shared Infrastructure Modification
 
-The frozen/mutable split plus `router.lock` checksums make correct changes cheaper than wrong changes.
+The frozen/mutable split plus `router.lock` checksums over the managed router files make correct changes cheaper than wrong changes.
 
 ## How to Use the Router
 
@@ -137,7 +137,7 @@ internal/router/
 │   ├── error_surface.go      # Router error rendering
 │   └── capabilities.go       # Declared capability manifest
 │
-├── router.lock               # Checksums for frozen files
+├── router.lock               # Checksums for the managed router files
 └── tools/wrlk/              # CLI for port management
 ```
 

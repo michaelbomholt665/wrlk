@@ -9,8 +9,8 @@ import (
 	"github.com/michaelbomholt665/wrlk/internal/router"
 )
 
-// extensions contains required application extensions only.
-// Keep this slice explicit and app-owned; do not leave sample providers wired here.
+// extensions contains generated required application extensions from app_manifest.go.
+// It may be empty when the host application has no required adapters to boot here.
 var extensions = []router.Extension{}
 
 const (

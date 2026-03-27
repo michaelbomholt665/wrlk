@@ -12,7 +12,7 @@ The router is a **development integrity and structural constraint system**, not 
 | Typo / wrong port literals    | Typed `PortName` + whitelist validation  | Compile-time correctness guard             |
 | Late mutation after boot      | Immutable published snapshot             | Prevents post-boot registration            |
 | Port shadowing                | Duplicate registration rejection         | Duplicate provider registration is blocked |
-| Frozen file drift             | `router.lock` + host tooling             | Development integrity control              |
+| Managed router drift         | `router.lock` + host tooling             | Development integrity control              |
 | Async boot deadlock           | Host-supplied `ctx` timeout/cancellation | Operational startup safeguard              |
 
 ## What the Router Does NOT Protect Against
@@ -80,11 +80,17 @@ The router provides development workflow constraints specifically designed to gu
 
 ### router.lock Checksums
 
-The `router.lock` file tracks SHA256 checksums of frozen files:
+The `router.lock` file tracks SHA256 checksums of the managed router files:
 
 ```json
 {"file":"internal/router/extension.go","checksum":"f2d4e4c7468cbff6a1d9a8cfbffc546a827f6c2643ddafee4123635594eac897"}
 {"file":"internal/router/registry.go","checksum":"81b056144d678058f61840f46be36a279b011fde2c6893205e6be1e407a89712"}
+{"file":"internal/router/ports.go","checksum":"..."}
+{"file":"internal/router/registry_imports.go","checksum":"..."}
+{"file":"internal/router/router_manifest.go","checksum":"..."}
+{"file":"internal/router/ext/app_manifest.go","checksum":"..."}
+{"file":"internal/router/ext/optional_extensions.go","checksum":"..."}
+{"file":"internal/router/ext/extensions.go","checksum":"..."}
 ```
 
 **Verification flow:**
@@ -96,7 +102,7 @@ go run ./internal/router/tools/wrlk lock verify
 
 If checksums don't match:
 - Automatic CI/CD failure (if integrated)
-- Clear signal that frozen files were modified
+- Clear signal that the managed router files drifted
 - Forces intentional decision to update lock
 
 ### Narrow Wiring Surface
@@ -108,7 +114,7 @@ The mutable wiring surface is intentionally narrow:
 - `router_manifest.go` should remain the source of truth for router-owned ports and optional extensions
 - `ext/app_manifest.go` should remain the source of truth for required application adapters
 - generated `ext/optional_extensions.go` should remain wiring-focused
-- generated `ext/extensions.go` is the required application boot composition layer and boot-policy wrapper, and should remain explicit
+- generated `ext/extensions.go` is the required application boot composition layer and boot-policy wrapper, and may be empty when the host app has no required adapters wired there
 
 The main wiring files are designed to stay simple and auditable, typically containing:
 - Constant declarations
@@ -163,7 +169,7 @@ Host projects can add additional enforcement through:
 | Port uniqueness       | Duplicate registration rejection | No accidental shadowing |
 | Immutable state       | Atomic publication               | No post-boot mutation   |
 | Compile-time safety   | Typed PortName                   | No runtime typos        |
-| Frozen file integrity | router.lock checksums            | No silent modifications |
+| Managed router integrity | router.lock checksums         | No silent modifications |
 | Boot timeout          | Host context                     | No infinite waits       |
 
 ## Port Access Control

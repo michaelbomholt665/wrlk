@@ -304,7 +304,7 @@ func (e *Extension) RouterProvideRegistration(reg *router.Registry) error {
 
 **Error:** `router lock verify failed: checksum mismatch in internal/router/extension.go`
 
-**Cause:** The frozen router files have been modified.
+**Cause:** One or more managed router files have drifted from the checksums recorded in `router.lock`.
 
 **Fix:**
 
@@ -322,7 +322,7 @@ go run ./internal/router/tools/wrlk lock restore
 
 ### When should I use optional extensions vs application extensions?
 
-**Application extensions** are required for the application to boot. Their declarations belong in `app_manifest.go`, and they generate into `extensions.go`. If they fail, boot fails with a fatal error.
+**Application extensions** are required for the application to boot. Their declarations belong in `app_manifest.go`, and they generate into `extensions.go`. That generated slice may be empty when the application has no required adapters wired there. If a required application extension fails, boot fails with a fatal error.
 
 **Optional extensions** are capabilities that extend the router. Their declarations belong in `router_manifest.go`, and they generate into `optional_extensions.go`. If they fail, boot continues with warnings.
 

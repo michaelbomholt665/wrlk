@@ -1,7 +1,7 @@
 ---
 config:
   layout: dagre
-  look: handDrawn
+  look: classic
 ---
 flowchart LR
     subgraph Business["Business Logic"]
@@ -15,10 +15,10 @@ flowchart LR
     end
 
     subgraph RouterMutable["Router Wiring (mutable)"]
-        Ports["internal/router/ports.go\nport whitelist"]
-        Imports["internal/router/registry_imports.go\nport validation + snapshot state"]
-        OptExt["internal/router/ext/optional_extensions.go\noptional capability wiring"]
-        ReqExt["internal/router/ext/extensions.go\nrequired app wiring + boot policy"]
+        Ports["internal/router/router_manifest.go -> ports.go\nport whitelist"]
+        Imports["internal/router/router_manifest.go -> registry_imports.go\nport validation + snapshot state"]
+        OptExt["internal/router/router_manifest.go -> optional_extensions.go\noptional capability wiring"]
+        ReqExt["internal/router/ext/app_manifest.go -> extensions.go\nrequired app wiring + boot policy"]
     end
 
     subgraph RouterCore["Router Core (frozen)"]

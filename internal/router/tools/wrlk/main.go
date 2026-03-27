@@ -259,7 +259,7 @@ func RouterWriteGuide(writer io.Writer) error {
 		"  - If a consumed port is not registered when an extension boots, boot fails with a dependency-order error.",
 		"",
 		"Required vs optional:",
-		"  - `internal/router/ext/extensions.go` is app-owned. Keep only required application extensions there, and only if the app truly intends to boot them.",
+		"  - `internal/router/ext/extensions.go` is generated from `app_manifest.go` and may be empty when the app has no required adapters to boot there.",
 		"  - `internal/router/ext/optional_extensions.go` is only for optional capability extensions such as telemetry or metrics.",
 		"  - Optional extension failures produce warnings and boot continues.",
 		"  - Required extension failures fail boot.",

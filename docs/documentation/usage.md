@@ -77,6 +77,8 @@ That updates:
 - `internal/router/registry_imports.go`
 - `internal/router/router.lock`
 
+`router.lock` verifies the managed router files that are expected to stay in sync, not just the frozen core.
+
 ## Register an Extension
 
 Use `wrlk register` against the manifest layer, then let the generated runtime wiring stay in sync.
@@ -97,6 +99,8 @@ go run ./internal/router/tools/wrlk register --ext --app --name billing
 
 This wires `internal/adapters/billing/` into `internal/router/ext/extensions.go` and records the declaration in `internal/router/ext/app_manifest.go`.
 
+`internal/router/ext/extensions.go` may legitimately remain empty when the application has no required adapters to boot there.
+
 `register --ext --router` is for router-owned extensions under `internal/router/ext/extensions/<name>/`, which boot first. `register --ext --app` is for app-owned adapters such as `internal/adapters/<name>/`, which boot second and then rely on declared `Consumes()` edges for ordering within the application layer.
 
 Use `--dry-run` with `wrlk register`, `wrlk ext remove`, or `wrlk ext app remove` to preview changes.
@@ -107,7 +111,7 @@ Use `--dry-run` with `wrlk register`, `wrlk ext remove`, or `wrlk ext app remove
 - `internal/router/capabilities/`: router-native capability contracts and typed resolvers
 - `internal/router/ports.go`: port names
 - `internal/router/ext/optional_extensions.go`: optional capability wiring
-- `internal/router/ext/extensions.go`: required application wiring and boot policy wrapper
+- `internal/router/ext/extensions.go`: generated required application wiring and boot policy wrapper; may be empty
 - `internal/router/registry.go`: provider resolution and restricted resolution
 
 ## Rule

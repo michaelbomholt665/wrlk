@@ -38,7 +38,12 @@ const minimalValidationFile = `package router
 
 import "sync/atomic"
 
-var registry atomic.Pointer[map[PortName]Provider]
+type routerRegistrySnapshot struct {
+	providers    map[PortName]Provider
+	restrictions map[PortName][]string
+}
+
+var registry atomic.Pointer[routerRegistrySnapshot]
 
 // RouterValidatePortName reports whether the port is declared in the router whitelist.
 func RouterValidatePortName(port PortName) bool {
@@ -64,12 +69,16 @@ func RouterResolveProvider() {}
 `
 
 const (
-	portsRelPath      = "internal/router/ports.go"
-	validationRelPath = "internal/router/registry_imports.go"
-	extensionRelPath  = "internal/router/extension.go"
-	registryRelPath   = "internal/router/registry.go"
-	lockRelPath       = "internal/router/router.lock"
-	snapshotRelPath   = "internal/router/router.snapshot.json"
+	portsRelPath       = "internal/router/ports.go"
+	validationRelPath  = "internal/router/registry_imports.go"
+	extensionRelPath   = "internal/router/extension.go"
+	registryRelPath    = "internal/router/registry.go"
+	manifestRelPath    = "internal/router/router_manifest.go"
+	appManifestRelPath = "internal/router/ext/app_manifest.go"
+	optionalExtRelPath = "internal/router/ext/optional_extensions.go"
+	extensionsRelPath  = "internal/router/ext/extensions.go"
+	lockRelPath        = "internal/router/router.lock"
+	snapshotRelPath    = "internal/router/router.snapshot.json"
 )
 
 // TestPortgen_Add_UpdatesPortsFile verifies that a new port constant is injected into ports.go.
@@ -420,6 +429,10 @@ func createPortgenFixture(t *testing.T) string {
 	writeFixtureFile(t, root, validationRelPath, minimalValidationFile)
 	writeFixtureFile(t, root, extensionRelPath, minimalExtensionFile)
 	writeFixtureFile(t, root, registryRelPath, minimalRegistryFile)
+	writeFixtureFile(t, root, manifestRelPath, "package router\n\nvar DeclaredPorts = []struct{}{}\n")
+	writeFixtureFile(t, root, appManifestRelPath, "package ext\n\nvar DeclaredApplicationExtensions = []struct{}{}\n")
+	writeFixtureFile(t, root, optionalExtRelPath, "package ext\n")
+	writeFixtureFile(t, root, extensionsRelPath, "package ext\n")
 
 	return root
 }
@@ -440,7 +453,16 @@ func writeLockFixture(t *testing.T, root string) {
 
 	var payload bytes.Buffer
 	encoder := json.NewEncoder(&payload)
-	for _, rel := range []string{extensionRelPath, registryRelPath} {
+	for _, rel := range []string{
+		extensionRelPath,
+		registryRelPath,
+		portsRelPath,
+		validationRelPath,
+		manifestRelPath,
+		appManifestRelPath,
+		optionalExtRelPath,
+		extensionsRelPath,
+	} {
 		record := lockRecord{
 			File:     rel,
 			Checksum: checksumForFile(t, root, rel),

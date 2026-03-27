@@ -2,7 +2,7 @@
 
 `internal/router` is a small port registry and extension boot layer for Go applications. It gives the application one explicit place to register providers behind typed port names, boot extensions in dependency order, and publish one immutable registry snapshot that consumers can resolve from without runtime wiring logic scattered across the codebase.
 
-The package supports two extension categories. Optional capability extensions add router-native infrastructure such as CLI styling and interaction, while required application extensions wire the concrete adapters your application actually runs behind its declared ports. The package is intentionally split into a frozen core and manifest-backed wiring layers: `internal/router/router_manifest.go` owns router-native port and optional extension declarations, `internal/router/ext/app_manifest.go` owns required application extension declarations, and `wrlk register` regenerates the runtime files from those manifests. A local `wrlk` tool and `router.lock` keep changes to the router surface explicit, reviewable, and hard to drift by accident.
+The package supports two extension categories. Optional capability extensions add router-native infrastructure such as CLI styling and interaction, while required application extensions wire the concrete adapters your application actually runs behind its declared ports. The package is intentionally split into a frozen core and manifest-backed wiring layers: `internal/router/router_manifest.go` owns router-native port and optional extension declarations, `internal/router/ext/app_manifest.go` owns required application extension declarations, and `wrlk register` regenerates the runtime files from those manifests. A local `wrlk` tool and `router.lock` keep the managed router surface explicit, reviewable, and hard to drift by accident.
 
 ## Architecture
 
@@ -10,7 +10,7 @@ The package supports two extension categories. Optional capability extensions ad
 ---
 config:
   layout: dagre
-  look: handDrawn
+  look: classic
 ---
 flowchart LR
     subgraph Business["Business Logic"]
@@ -26,7 +26,7 @@ flowchart LR
     subgraph RouterMutable["Router Wiring (mutable)"]
         Ports["internal/router/router_manifest.go -> ports.go\nport whitelist"]
         Imports["internal/router/router_manifest.go -> registry_imports.go\nport validation + snapshot state"]
-        OptExt["internal/router/ext/optional_extensions.go\noptional capability wiring"]
+        OptExt["internal/router/router_manifest.go -> optional_extensions.go\noptional capability wiring"]
         ReqExt["internal/router/ext/app_manifest.go -> extensions.go\nrequired app wiring + boot policy"]
     end
 
@@ -101,6 +101,7 @@ flowchart LR
 
     linkStyle 17,18,19 stroke:#2d6a4f,stroke-width:2px,stroke-dasharray: 4 4
     linkStyle 20,21,22,23,24,25,26 stroke:#dc2626,stroke-width:3px,stroke-dasharray: 6 6
+
 ```
 
 ## What It Does
@@ -184,7 +185,7 @@ Use:
 - `register --ext --app` to wire a required application extension in `app_manifest.go`
 - `ext remove` to unwire an optional capability extension from `optional_extensions.go`
 - `ext app remove` to unwire a required application extension from `extensions.go`
-- `live run` to start a bounded live verification session
+- `live run` to start a bounded live verification session for local or otherwise trusted-network use
 
 For the CLI capability split:
 - `PortCLIStyle` should stay owned by `prettystyle` for output concerns such as text, tables, and semantic layouts.
@@ -194,7 +195,9 @@ For the CLI capability split:
 
 ## Important Rule
 
-`internal/router/ext/extensions.go` is intentionally generated from `internal/router/ext/app_manifest.go`. Do not leave sample or unused providers wired there, and do not treat the generated file as the edit surface.
+`internal/router/ext/extensions.go` is intentionally generated from `internal/router/ext/app_manifest.go`. It may legitimately be empty when the application has no required adapters to wire there. Do not leave sample or unused providers wired there, and do not treat the generated file as the edit surface.
+
+`wrlk live run` is not suitable for internet exposure as-is. Before exposing it remotely, add authenticated session tokens, bounded request sizes, explicit server timeouts, and rate limiting.
 
 Business logic should import `internal/ports` and, when needed, `internal/router/capabilities` or `internal/router` for resolution. It should not import concrete adapters or concrete extension packages.
 

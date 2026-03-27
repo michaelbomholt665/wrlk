@@ -225,7 +225,7 @@ func RouterInjectPortConstant(content []byte, name, value string) ([]byte, error
 	constBlock.Specs = append(constBlock.Specs, &ast.ValueSpec{
 		Doc: &ast.CommentGroup{
 			List: []*ast.Comment{{
-				Text: fmt.Sprintf("// %s is the %s provider port.", name, value),
+				Text: fmt.Sprintf("// %s declares the %q provider port.", name, value),
 			}},
 		},
 		Names: []*ast.Ident{ast.NewIdent(name)},

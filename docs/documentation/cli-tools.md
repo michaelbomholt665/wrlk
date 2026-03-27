@@ -19,7 +19,7 @@ go run ./internal/router/tools/wrlk <command>
 | `wrlk lock verify` | Verify `router.lock` |
 | `wrlk lock update` | Update `router.lock` after intentional core changes |
 | `wrlk lock restore` | Restore the previous local snapshot |
-| `wrlk live run` | Start a bounded live verification session |
+| `wrlk live run` | Start a bounded live verification session for local/trusted use |
 | `wrlk guide` | Print the short operational guide |
 | `wrlk guide current` | Print the currently wired ports and extension inventory |
 | `wrlk guide extension` | Print the detailed extension authoring guide |
@@ -58,7 +58,7 @@ This wires `internal/adapters/billing/` into `internal/router/ext/extensions.go`
 
 Historical migration note: earlier router refactors used `wrlk ext add`, `wrlk ext install`, and `wrlk ext app add`. The preferred edit surface is now `wrlk register`, with manifests as the source of truth.
 
-Verify router core integrity:
+Verify managed router integrity:
 
 ```bash
 go run ./internal/router/tools/wrlk lock verify
@@ -92,6 +92,7 @@ go run ./internal/router/tools/wrlk live run --expect scanner-a --expect scanner
 
 - `wrlk register`, `wrlk ext remove`, and `wrlk ext app remove` support `--dry-run`.
 - `wrlk module sync` is a one-time bootstrap step for copied router bundles, not part of normal day-to-day router edits.
-- `internal/router/ext/app_manifest.go` is the source of truth for required application extension wiring; `extensions.go` remains generated runtime output.
+- `internal/router/ext/app_manifest.go` is the source of truth for required application extension wiring; `extensions.go` remains generated runtime output and may be empty.
 - `optional_extensions.go` is for non-fatal capability extensions only.
-- `lock verify` tracks only `internal/router/extension.go` and `internal/router/registry.go`.
+- `lock verify` tracks the managed router files: `extension.go`, `registry.go`, `ports.go`, `registry_imports.go`, `router_manifest.go`, `ext/app_manifest.go`, `ext/optional_extensions.go`, and `ext/extensions.go`.
+- `live run` is intended for local or otherwise trusted-network use. Before exposing it remotely, add authenticated session tokens, bounded request sizes, explicit server timeouts, and rate limiting.

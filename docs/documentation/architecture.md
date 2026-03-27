@@ -21,7 +21,7 @@ internal/router/
 │   ├── error_surface.go      # Router error rendering
 │   └── capabilities.go       # Declared capability manifest
 │
-├── router.lock               # NDJSON integrity checksums (git committed)
+├── router.lock               # NDJSON integrity checksums for the managed router files (git committed)
 └── tools/wrlk/
     └── main.go              # Optional router-local CLI for lock verification and port management
 ```
@@ -71,12 +71,12 @@ package router
 
 import "sync/atomic"
 
-type routerSnapshot struct {
+type routerRegistrySnapshot struct {
     providers    map[PortName]Provider
     restrictions map[PortName][]string
 }
 
-var registry atomic.Pointer[routerSnapshot]
+var registry atomic.Pointer[routerRegistrySnapshot]
 
 func RouterValidatePortName(port PortName) bool {
     switch port {
@@ -122,6 +122,7 @@ import (
 var extensions = []router.Extension{
     // Generated from app_manifest.go.
     // Required application adapters only.
+    // This slice may be empty.
 }
 
 // RouterBootExtensions validates boot policy, wires optional extensions first,
@@ -139,6 +140,8 @@ func RouterBootExtensions(ctx context.Context) ([]error, error) {
 `validateRouterBootPolicy` currently enforces:
 - `ROUTER_PROFILE` must match `WRLK_ENV` when both are set
 - `ROUTER_ALLOW_ANY=true` is rejected when `WRLK_ENV=prod`
+
+`wrlk live run` is intended for local or otherwise trusted-network use. If you expose it remotely, add authenticated session tokens, bounded request sizes, explicit server timeouts, and rate limiting.
 
 ### `extension.go` — FROZEN
 
@@ -252,7 +255,8 @@ earlier phase, boot fails under the existing dependency/order semantics.
 
 - Router depends only on `Extension` interface, never concrete adapters.
 - Host supplies `ctx` for timeout/cancellation.
-- Mutable files = `ports.go` + `registry_imports.go` + `ext/optional_extensions.go` + `ext/extensions.go`.
+- Mutable runtime files = `ports.go` + `registry_imports.go` + `ext/optional_extensions.go` + `ext/extensions.go`.
+- Manifest edit files = `router_manifest.go` + `ext/app_manifest.go`.
 - Frozen files contain contracts + orchestration + publication logic only.
 - The router core uses only the standard library; optional extensions may use third-party libraries.
 - `Registry` handle is the only write surface for extensions.

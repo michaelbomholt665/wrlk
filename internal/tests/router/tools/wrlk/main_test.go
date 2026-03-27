@@ -19,22 +19,39 @@ import (
 const (
 	routerExtensionPath = "internal/router/extension.go"
 	routerRegistryPath  = "internal/router/registry.go"
+	routerPortsPath     = "internal/router/ports.go"
+	routerImportsPath   = "internal/router/registry_imports.go"
+	routerManifestPath  = "internal/router/router_manifest.go"
+	appManifestPath     = "internal/router/ext/app_manifest.go"
+	optionalExtPath     = "internal/router/ext/optional_extensions.go"
+	appExtPath          = "internal/router/ext/extensions.go"
 	routerLockPath      = "internal/router/router.lock"
 	routerSnapshotPath  = "internal/router/router.snapshot.json"
 )
+
+var managedRouterPaths = []string{
+	routerExtensionPath,
+	routerRegistryPath,
+	routerPortsPath,
+	routerImportsPath,
+	routerManifestPath,
+	appManifestPath,
+	optionalExtPath,
+	appExtPath,
+}
 
 type lockRecord struct {
 	File     string `json:"file"`
 	Checksum string `json:"checksum"`
 }
 
-type routerFileSnapshot struct {
-	CreatedAt string               `json:"created_at"`
-	Reason    string               `json:"reason"`
-	Files     []routerSnapshotFile `json:"files"`
+type routerMutationSnapshot struct {
+	CreatedAt string                       `json:"created_at"`
+	Reason    string                       `json:"reason"`
+	Files     []routerMutationSnapshotFile `json:"files"`
 }
 
-type routerSnapshotFile struct {
+type routerMutationSnapshotFile struct {
 	File     string `json:"file"`
 	Exists   bool   `json:"exists"`
 	Checksum string `json:"checksum,omitempty"`
@@ -53,7 +70,7 @@ func TestWrlkLockVerifyWorkflow(t *testing.T) {
 		routerExtensionPath: "package router\n\nfunc RouterLoadExtensions() {}\n",
 		routerRegistryPath:  "package router\n\nfunc RouterResolveProvider() {}\n",
 	})
-	writeLockFile(t, fixtureRoot, []string{routerExtensionPath, routerRegistryPath})
+	writeLockFile(t, fixtureRoot, managedRouterPaths)
 
 	result := runWrlkCommand(t, fixtureRoot, "lock", "verify")
 	require.NoError(t, result.err, result.stderr)
@@ -108,11 +125,11 @@ func TestWrlkLockRestoreWorkflow(t *testing.T) {
 		"internal/router/ports.go":            "package router\n\nconst PortPrimary = \"primary\"\n",
 		"internal/router/registry_imports.go": "package router\n\nfunc RouterValidatePortName() {}\n",
 	})
-	writeLockFile(t, fixtureRoot, []string{routerExtensionPath, routerRegistryPath})
-	writeSnapshotFile(t, fixtureRoot, routerFileSnapshot{
+	writeLockFile(t, fixtureRoot, managedRouterPaths)
+	writeSnapshotFile(t, fixtureRoot, routerMutationSnapshot{
 		CreatedAt: "2026-03-24T00:00:00Z",
 		Reason:    "test snapshot",
-		Files: []routerSnapshotFile{
+		Files: []routerMutationSnapshotFile{
 			{File: routerExtensionPath, Exists: true, Content: "package router\n\nfunc RouterLoadExtensions() {}\n"},
 			{File: "internal/router/ports.go", Exists: true, Content: "package router\n\nconst PortPrimary = \"primary\"\n"},
 			{File: routerRegistryPath, Exists: true, Content: "package router\n\nfunc RouterResolveProvider() {}\n"},
@@ -293,6 +310,21 @@ func createRouterFixture(t *testing.T, files map[string]string) string {
 	t.Helper()
 
 	root := t.TempDir()
+	defaultFiles := map[string]string{
+		routerExtensionPath: "package router\n\nfunc RouterLoadExtensions() {}\n",
+		routerRegistryPath:  "package router\n\nfunc RouterResolveProvider() {}\n",
+		routerPortsPath:     "package router\n\nconst PortPrimary = \"primary\"\n",
+		routerImportsPath:   "package router\n\nfunc RouterValidatePortName() {}\n",
+		routerManifestPath:  "package router\n\nvar DeclaredPorts = []struct{}{}\n",
+		appManifestPath:     "package ext\n\nvar DeclaredApplicationExtensions = []struct{}{}\n",
+		optionalExtPath:     "package ext\n",
+		appExtPath:          "package ext\n",
+	}
+	for relativePath, content := range defaultFiles {
+		absolutePath := filepath.Join(root, filepath.FromSlash(relativePath))
+		require.NoError(t, os.MkdirAll(filepath.Dir(absolutePath), 0o755))
+		require.NoError(t, os.WriteFile(absolutePath, []byte(content), 0o600))
+	}
 	for relativePath, content := range files {
 		absolutePath := filepath.Join(root, filepath.FromSlash(relativePath))
 		require.NoError(t, os.MkdirAll(filepath.Dir(absolutePath), 0o755))
@@ -321,7 +353,7 @@ func writeLockFile(t *testing.T, root string, lockedFiles []string) {
 	require.NoError(t, os.WriteFile(lockAbsolutePath, payload.Bytes(), 0o600))
 }
 
-func writeSnapshotFile(t *testing.T, root string, snapshot routerFileSnapshot) {
+func writeSnapshotFile(t *testing.T, root string, snapshot routerMutationSnapshot) {
 	t.Helper()
 
 	snapshotAbsolutePath := filepath.Join(root, filepath.FromSlash(routerSnapshotPath))

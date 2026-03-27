@@ -592,8 +592,6 @@ func RouterExtExtensionTemplate(name, modulePath string, spec extCommandSpec) st
 	return fmt.Sprintf(`package %s
 
 import (
-	"fmt"
-
 	"log"
 
 	"%s/internal/router"
@@ -618,15 +616,13 @@ func (e *Extension) Provides() []router.PortName {
 }
 
 // RouterProvideRegistration registers the %s provider into the boot registry.
-func (e *Extension) RouterProvideRegistration(reg *router.Registry) error {
+func (e *Extension) RouterProvideRegistration(_ *router.Registry) error {
 	// TODO: replace with the actual port and provider.
 	// Example:
 	//   if err := reg.RouterRegisterProvider(router.Port%s, yourProvider); err != nil {
 	//       return fmt.Errorf("%s extension: %%w", err)
 	//   }
 	log.Printf("%s extension initialized")
-	_ = fmt.Sprintf
-	_ = reg
 
 	return nil
 }
@@ -732,32 +728,32 @@ func RouterWriteExtSnapshotBeforeMutation(root, reason string) error {
 }
 
 // RouterCaptureNamedSnapshot builds a snapshot for an explicit list of relative file paths.
-func RouterCaptureNamedSnapshot(root, reason string, files []string) (routerFileSnapshot, error) {
-	snapshotFiles := make([]routerSnapshotFile, 0, len(files))
+func RouterCaptureNamedSnapshot(root, reason string, files []string) (routerMutationSnapshot, error) {
+	snapshotFiles := make([]routerMutationSnapshotFile, 0, len(files))
 
 	for _, relativePath := range files {
 		absolutePath := filepath.Join(root, filepath.FromSlash(relativePath))
 		content, err := os.ReadFile(absolutePath)
 		if err != nil {
 			if os.IsNotExist(err) {
-				snapshotFiles = append(snapshotFiles, routerSnapshotFile{
+				snapshotFiles = append(snapshotFiles, routerMutationSnapshotFile{
 					File:   relativePath,
 					Exists: false,
 				})
 				continue
 			}
 
-			return routerFileSnapshot{}, fmt.Errorf("read ext snapshot file %s: %w", relativePath, err)
+			return routerMutationSnapshot{}, fmt.Errorf("read ext snapshot file %s: %w", relativePath, err)
 		}
 
-		snapshotFiles = append(snapshotFiles, routerSnapshotFile{
+		snapshotFiles = append(snapshotFiles, routerMutationSnapshotFile{
 			File:    relativePath,
 			Exists:  true,
 			Content: string(content),
 		})
 	}
 
-	return routerFileSnapshot{
+	return routerMutationSnapshot{
 		CreatedAt: RouterSnapshotTimestamp(),
 		Reason:    reason,
 		Files:     snapshotFiles,

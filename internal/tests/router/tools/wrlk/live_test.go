@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"os/exec"
@@ -304,10 +303,6 @@ func TestLive_Run_WrongSubcommand_Rejected(t *testing.T) {
 	assert.Contains(t, result.stderr, "boot",
 		"usage error should echo the unknown subcommand name")
 }
-
-// Ensure liveParticipantReport and postReport are used (suppress unused import
-// warnings for unused formatting verbs in test-only helper).
-var _ = fmt.Sprintf
 
 func readResponseBody(t *testing.T, response *http.Response) string {
 	t.Helper()

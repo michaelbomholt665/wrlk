@@ -50,6 +50,10 @@ func RouterRunLiveSession(args []string, stdout io.Writer) error {
 
 	session := RouterNewLiveSession(options.expectedIDs)
 	server := &http.Server{
+		// This endpoint is intended for local or otherwise trusted-network use.
+		// It is not suitable for internet exposure as-is. Before exposing it
+		// remotely, require authenticated session tokens, bound request sizes,
+		// explicit server timeouts, and rate limiting.
 		Handler: http.HandlerFunc(session.RouterHandleLiveReport),
 	}
 
