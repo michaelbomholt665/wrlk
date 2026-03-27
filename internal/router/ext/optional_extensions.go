@@ -1,3 +1,7 @@
+// internal/router/ext/optional_extensions.go
+// Generates the statically defined ordered slice of optional capabilities
+// that extend the base router without adding core dependencies.
+
 // Package ext provides the router extension wiring and boot orchestration.
 //
 // Package Concerns:

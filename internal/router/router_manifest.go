@@ -1,3 +1,7 @@
+// internal/router/router_manifest.go
+// Contains the statically generated ordered declarations for base ports
+// and optional extensions, acting as the ground-truth for boot sequences.
+
 package router
 
 // PortManifestEntry declares one generated router port constant.

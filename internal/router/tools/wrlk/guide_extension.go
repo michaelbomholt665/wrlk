@@ -1,3 +1,7 @@
+// internal/router/tools/wrlk/guide_extension.go
+// Provides a detailed authoring guide for scaffolding router extensions
+// and mapping capability contracts to implementation logic.
+
 package main
 
 import (

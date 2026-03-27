@@ -1,3 +1,6 @@
+// internal/router/ext/extensions/charmcli/extension.go
+// Defines the strictly typed router extension for the charmcli capability.
+
 package charmcli
 
 import (

@@ -1,3 +1,7 @@
+// internal/router/ports.go
+// Defines the strictly typed port identifiers and provider types used
+// across the core router extension manifest.
+
 package router
 
 // PortName is a typed router port identifier.

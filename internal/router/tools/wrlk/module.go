@@ -1,3 +1,7 @@
+// internal/router/tools/wrlk/module.go
+// Implements module path discovery and automated import rewriting
+// for synchronizing bundled router copies with the host project.
+
 package main
 
 import (
@@ -94,36 +98,20 @@ func RouterRewriteBundledModulePath(root string, sourceModulePath string, target
 	updatedFiles := make([]string, 0)
 
 	walkErr := filepath.WalkDir(routerRoot, func(path string, entry os.DirEntry, err error) error {
-		if err != nil {
-			return err
+		updatedFile, updateErr := RouterRewriteBundledModuleFile(
+			root,
+			path,
+			entry,
+			err,
+			sourceModulePath,
+			targetModulePath,
+		)
+		if updateErr != nil {
+			return updateErr
 		}
-		if entry.IsDir() {
-			return nil
+		if updatedFile != "" {
+			updatedFiles = append(updatedFiles, updatedFile)
 		}
-		if filepath.Ext(path) != ".go" {
-			return nil
-		}
-
-		content, err := os.ReadFile(path)
-		if err != nil {
-			return fmt.Errorf("read %s: %w", path, err)
-		}
-
-		updatedContent := strings.ReplaceAll(string(content), sourceModulePath, targetModulePath)
-		if updatedContent == string(content) {
-			return nil
-		}
-
-		if err := os.WriteFile(path, []byte(updatedContent), 0o644); err != nil {
-			return fmt.Errorf("write %s: %w", path, err)
-		}
-
-		relativePath, err := filepath.Rel(root, path)
-		if err != nil {
-			return fmt.Errorf("compute relative path for %s: %w", path, err)
-		}
-
-		updatedFiles = append(updatedFiles, filepath.ToSlash(relativePath))
 		return nil
 	})
 	if walkErr != nil {
@@ -131,4 +119,42 @@ func RouterRewriteBundledModulePath(root string, sourceModulePath string, target
 	}
 
 	return updatedFiles, nil
+}
+
+// RouterRewriteBundledModuleFile rewrites one bundled router Go file when it still imports the source module.
+func RouterRewriteBundledModuleFile(
+	root string,
+	path string,
+	entry os.DirEntry,
+	walkErr error,
+	sourceModulePath string,
+	targetModulePath string,
+) (string, error) {
+	if walkErr != nil {
+		return "", walkErr
+	}
+	if entry.IsDir() || filepath.Ext(path) != ".go" {
+		return "", nil
+	}
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("read %s: %w", path, err)
+	}
+
+	updatedContent := strings.ReplaceAll(string(content), sourceModulePath, targetModulePath)
+	if updatedContent == string(content) {
+		return "", nil
+	}
+
+	if writeErr := os.WriteFile(path, []byte(updatedContent), 0o644); writeErr != nil {
+		return "", fmt.Errorf("write %s: %w", path, writeErr)
+	}
+
+	relativePath, err := filepath.Rel(root, path)
+	if err != nil {
+		return "", fmt.Errorf("compute relative path for %s: %w", path, err)
+	}
+
+	return filepath.ToSlash(relativePath), nil
 }

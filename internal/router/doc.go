@@ -27,15 +27,15 @@
 //   - NO MANUAL BOOTING: Only ext.RouterBootExtensions is authorized to trigger the loading sequence.
 //
 // ### 4. EXTENSION IMPLEMENTATION STEPS
-// 1. SCAFFOLD: Run `wrlk register --port --router` to register the PortName.
-// 2. DEFINE: Create the interface in the domain-specific package (internal/ports).
-// 3. IMPLEMENT: Create either a router-owned extension in
-//    internal/router/ext/extensions/<name> or an app-owned adapter extension in
-//    internal/adapters/<name>, depending on boot ownership.
-// 4. REGISTER: Use reg.RouterRegisterProvider(router.PortName, implementation).
-// 5. WIRE THROUGH THE MANIFESTS:
-//   - Optional capability extension: `go run ./internal/router/tools/wrlk register --ext --router --name <ExtensionName>`
-//   - Required application extension: `go run ./internal/router/tools/wrlk register --ext --app --name <ExtensionName>`
+//  1. SCAFFOLD: Run `wrlk register --port --router` to register the PortName.
+//  2. DEFINE: Create the interface in the domain-specific package (internal/ports).
+//  3. IMPLEMENT: Create either a router-owned extension in
+//     internal/router/ext/extensions/<name> or an app-owned adapter extension in
+//     internal/adapters/<name>, depending on boot ownership.
+//  4. REGISTER: Use reg.RouterRegisterProvider(router.PortName, implementation).
+//  5. WIRE THROUGH THE MANIFESTS:
+//     - Optional capability extension: `go run ./internal/router/tools/wrlk register --ext --router --name <ExtensionName>`
+//     - Required application extension: `go run ./internal/router/tools/wrlk register --ext --app --name <ExtensionName>`
 //
 // ### 5. PERFORMANCE INVARIANT
 // This router is optimized for <1ns resolution.

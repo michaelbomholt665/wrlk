@@ -128,11 +128,11 @@ func TestLive_Run_AllParticipantsSucceed_ExitsZero(t *testing.T) {
 	)
 
 	resp := postReport(t, s.url, liveParticipantReport{ID: "alpha", Status: "success"})
-	resp.Body.Close()
+	require.NoError(t, resp.Body.Close())
 	assert.Equal(t, http.StatusAccepted, resp.StatusCode, "alpha success report")
 
 	resp = postReport(t, s.url, liveParticipantReport{ID: "beta", Status: "success"})
-	resp.Body.Close()
+	require.NoError(t, resp.Body.Close())
 	assert.Equal(t, http.StatusAccepted, resp.StatusCode, "beta success report")
 
 	result := s.wait()
@@ -151,7 +151,7 @@ func TestLive_Run_OneParticipantFails_ExitsNonZero(t *testing.T) {
 	)
 
 	resp := postReport(t, s.url, liveParticipantReport{ID: "alpha", Status: "success"})
-	resp.Body.Close()
+	require.NoError(t, resp.Body.Close())
 
 	resp = postReport(t, s.url, liveParticipantReport{
 		ID:     "beta",
@@ -159,7 +159,7 @@ func TestLive_Run_OneParticipantFails_ExitsNonZero(t *testing.T) {
 		Error:  "assertion mismatch",
 	})
 	body := readResponseBody(t, resp)
-	resp.Body.Close()
+	require.NoError(t, resp.Body.Close())
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "failure report must be acknowledged distinctly")
 	assert.Contains(t, body, "beta reported failure: assertion mismatch")
 
@@ -178,7 +178,7 @@ func TestLive_Run_UnknownParticipant_Rejected(t *testing.T) {
 	)
 
 	resp := postReport(t, s.url, liveParticipantReport{ID: "intruder", Status: "success"})
-	resp.Body.Close()
+	require.NoError(t, resp.Body.Close())
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode,
 		"unknown participant must be rejected with 400")
 
@@ -198,12 +198,12 @@ func TestLive_Run_DuplicateParticipant_Rejected(t *testing.T) {
 	)
 
 	resp := postReport(t, s.url, liveParticipantReport{ID: "alpha", Status: "success"})
-	resp.Body.Close()
+	require.NoError(t, resp.Body.Close())
 	assert.Equal(t, http.StatusAccepted, resp.StatusCode, "first alpha report accepted")
 
 	// Second report from the same participant — must be rejected.
 	resp = postReport(t, s.url, liveParticipantReport{ID: "alpha", Status: "success"})
-	resp.Body.Close()
+	require.NoError(t, resp.Body.Close())
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode,
 		"duplicate participant must be rejected with 400")
 
@@ -231,7 +231,7 @@ func TestLive_Run_Timeout_IsBug(t *testing.T) {
 
 	// Send the first participant success to start the startedAt clock.
 	resp := postReport(t, s.url, liveParticipantReport{ID: "fast-participant", Status: "success"})
-	resp.Body.Close()
+	require.NoError(t, resp.Body.Close())
 	assert.Equal(t, http.StatusAccepted, resp.StatusCode, "first participant accepted")
 
 	// Do NOT send the second participant report — wait for the session to time out.
@@ -262,14 +262,16 @@ func TestLive_ReportPath_WrongMethod_NotFound(t *testing.T) {
 	require.NoError(t, err)
 	resp, err := client.Do(req)
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() {
+		require.NoError(t, resp.Body.Close())
+	}()
 
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode,
 		"GET to /report must return 404; only POST is accepted")
 
 	// Clean up: post a valid success so the session exits zero.
 	r := postReport(t, s.url, liveParticipantReport{ID: "alpha", Status: "success"})
-	r.Body.Close()
+	require.NoError(t, r.Body.Close())
 
 	result := s.wait()
 	require.NoError(t, result.err, "session should exit zero after cleanup report")

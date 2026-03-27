@@ -1,2 +1,8 @@
-{"file":"internal/router/extension.go","checksum":"d5d87c566856060fc28a44ae0bfa8bb8f30ff013d0e5755b6031110daa363081"}
-{"file":"internal/router/registry.go","checksum":"9c81bc4b770acb122f7143af0b92ea051e2196ce7d0f6256caba35bf7c245f2d"}
+{"file":"internal/router/ext/app_manifest.go","checksum":"63118950a707f76d0a60108cf698f1c6fa5697bfce01f98a5515c2386441b00f"}
+{"file":"internal/router/ext/extensions.go","checksum":"11c93ebd609f311b31c0dd93304d8649a96db17cfd8a62091a3ca11886e6bdc7"}
+{"file":"internal/router/ext/optional_extensions.go","checksum":"e3c77b4e35819c05e8ae9c6e7d5035bb4b152bb8a30f1bb7f734434385821196"}
+{"file":"internal/router/extension.go","checksum":"c14f66bb39a4b56867a358f77fe83d1b2997cc140d1a612a3b511066a28b0d01"}
+{"file":"internal/router/ports.go","checksum":"753926b817865494eb8d49fa2d1b8b1fb5726d4c83aab997de460f1eb1a1a5b4"}
+{"file":"internal/router/registry.go","checksum":"ae585f06fbf00c6ea1d44aaeb3123d49471b3a0dca2c25598664abf1b04d63cf"}
+{"file":"internal/router/registry_imports.go","checksum":"94a344fb14c3ffc37e658c38fa0e9b29a252cb695670b2804415411b21242aa7"}
+{"file":"internal/router/router_manifest.go","checksum":"67168ed65b6ef885361514a71e4e7b900e665115b0c2a135d3dd5a58229e5851"}

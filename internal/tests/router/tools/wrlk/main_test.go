@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -406,59 +405,6 @@ func runWrlkCommand(t *testing.T, targetRoot string, args ...string) commandResu
 
 	result.exitCode = exitErr.ExitCode()
 	return result
-}
-
-func copyRelativePath(t *testing.T, sourceRoot string, destinationRoot string, relativePath string) {
-	t.Helper()
-
-	sourcePath := filepath.Join(sourceRoot, filepath.FromSlash(relativePath))
-	destinationPath := filepath.Join(destinationRoot, filepath.FromSlash(relativePath))
-	require.NoError(t, os.MkdirAll(filepath.Dir(destinationPath), 0o755))
-	copyFile(t, sourcePath, destinationPath)
-}
-
-func copyDirectory(t *testing.T, sourceDir string, destinationDir string) {
-	t.Helper()
-
-	require.NoError(t, filepath.WalkDir(sourceDir, func(path string, entry os.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-
-		relativePath, err := filepath.Rel(sourceDir, path)
-		if err != nil {
-			return err
-		}
-
-		targetPath := filepath.Join(destinationDir, relativePath)
-		if entry.IsDir() {
-			return os.MkdirAll(targetPath, 0o755)
-		}
-
-		copyFile(t, path, targetPath)
-		return nil
-	}))
-}
-
-func copyFile(t *testing.T, sourcePath string, destinationPath string) {
-	t.Helper()
-
-	sourceFile, err := os.Open(sourcePath)
-	require.NoError(t, err)
-	defer func() {
-		require.NoError(t, sourceFile.Close())
-	}()
-
-	require.NoError(t, os.MkdirAll(filepath.Dir(destinationPath), 0o755))
-
-	destinationFile, err := os.Create(destinationPath)
-	require.NoError(t, err)
-	defer func() {
-		require.NoError(t, destinationFile.Close())
-	}()
-
-	_, err = io.Copy(destinationFile, sourceFile)
-	require.NoError(t, err)
 }
 
 func repositoryRoot(t *testing.T) string {

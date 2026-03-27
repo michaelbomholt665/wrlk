@@ -1,3 +1,7 @@
+// internal/router/registry_imports.go
+// Defines the internal registry state snapshot and port validation logic
+// used during the extension compilation phase.
+
 package router
 
 import "sync/atomic"

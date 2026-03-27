@@ -1,3 +1,7 @@
+// internal/router/tools/wrlk/live.go
+// Implements the live verification HTTP server and participant coordination
+// for testing router composition end-to-end.
+
 package main
 
 import (

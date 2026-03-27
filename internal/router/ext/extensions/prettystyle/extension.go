@@ -1,3 +1,6 @@
+// internal/router/ext/extensions/prettystyle/extension.go
+// Defines the strictly typed router extension for the prettystyle capability.
+
 package prettystyle
 
 import (

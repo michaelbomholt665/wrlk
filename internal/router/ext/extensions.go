@@ -1,3 +1,7 @@
+// internal/router/ext/extensions.go
+// Orchestrates the router extension boot process and validates the configured
+// router boot policies.
+
 package ext
 
 import (

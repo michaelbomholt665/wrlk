@@ -1,3 +1,7 @@
+// internal/router/tools/wrlk/ext.go
+// Defines commands and logic for scaffolding, installing, and removing
+// router capabilities and application extensions.
+
 package main
 
 import (
@@ -308,9 +312,9 @@ func RouterPerformExtensionAdd(
 	spec extCommandSpec,
 ) error {
 	compositionPath := filepath.Join(root, filepath.FromSlash(spec.compositionRelPath))
-	compositionContent, err := os.ReadFile(compositionPath)
-	if err != nil {
-		return fmt.Errorf("read %s: %w", filepath.Base(spec.compositionRelPath), err)
+	compositionContent, readErr := os.ReadFile(compositionPath)
+	if readErr != nil {
+		return fmt.Errorf("read %s: %w", filepath.Base(spec.compositionRelPath), readErr)
 	}
 
 	if err := RouterEnsureExtensionExistsForWiring(root, name, spec); err != nil {
@@ -535,14 +539,18 @@ func RouterInsertExtensionEntry(src string, closingBrace int, entryLine string) 
 }
 
 // RouterReadModulePath reads the module path from go.mod in the given root.
-func RouterReadModulePath(root string) (string, error) {
+func RouterReadModulePath(root string) (_ string, returnErr error) {
 	goModPath := filepath.Join(root, "go.mod")
 
 	file, err := os.Open(goModPath)
 	if err != nil {
 		return "", fmt.Errorf("open go.mod: %w", err)
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil && returnErr == nil {
+			returnErr = fmt.Errorf("close go.mod: %w", closeErr)
+		}
+	}()
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {

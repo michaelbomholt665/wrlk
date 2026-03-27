@@ -1,3 +1,7 @@
+// internal/router/tools/wrlk/lock.go
+// Implements the file tracking, snapshotting, and restoration mechanics
+// to protect the router core from unplanned drift.
+
 package main
 
 import (

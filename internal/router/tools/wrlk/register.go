@@ -1,3 +1,7 @@
+// internal/router/tools/wrlk/register.go
+// Implements manifest-backed scaffolding and code generation for port
+// and extension wiring.
+
 package main
 
 import (
@@ -55,7 +59,7 @@ func RouterRunRegisterCommand(options globalOptions, args []string, stdout io.Wr
 		return RouterWriteRegisterUsage(stdout)
 	}
 
-	registerOptions, err := RouterParseRegisterFlags(args)
+	registerFlags, err := RouterParseRegisterFlags(args)
 	if err != nil {
 		if err == flag.ErrHelp {
 			return RouterWriteRegisterUsage(stdout)
@@ -64,7 +68,7 @@ func RouterRunRegisterCommand(options globalOptions, args []string, stdout io.Wr
 		return &usageError{message: err.Error()}
 	}
 
-	if err := RouterExecuteRegister(options.root, registerOptions, stdout); err != nil {
+	if err := RouterExecuteRegister(options.root, registerFlags, stdout); err != nil {
 		return fmt.Errorf("register: %w", err)
 	}
 
@@ -304,13 +308,13 @@ func RouterAppendManifestEntry(filePath, variableName string, entryFields map[st
 		return fmt.Errorf("parse manifest file: %w", err)
 	}
 
-	compositeLiteral, err := RouterFindManifestCompositeLiteral(file, variableName)
-	if err != nil {
-		return err
+	compositeLiteral, findErr := RouterFindManifestCompositeLiteral(file, variableName)
+	if findErr != nil {
+		return findErr
 	}
 
-	if err := RouterValidateManifestEntryUniqueness(compositeLiteral, variableName, entryFields); err != nil {
-		return err
+	if validateErr := RouterValidateManifestEntryUniqueness(compositeLiteral, variableName, entryFields); validateErr != nil {
+		return validateErr
 	}
 
 	compositeLiteral.Elts = append(compositeLiteral.Elts, RouterBuildManifestCompositeLiteral(entryFields))
@@ -330,33 +334,66 @@ func RouterAppendManifestEntry(filePath, variableName string, entryFields map[st
 // RouterFindManifestCompositeLiteral locates the composite literal bound to the named manifest variable.
 func RouterFindManifestCompositeLiteral(file *ast.File, variableName string) (*ast.CompositeLit, error) {
 	for _, declaration := range file.Decls {
-		genDecl, ok := declaration.(*ast.GenDecl)
-		if !ok || genDecl.Tok != token.VAR {
+		compositeLiteral, found, err := RouterFindManifestCompositeLiteralInDecl(declaration, variableName)
+		if err != nil {
+			return nil, err
+		}
+		if !found {
 			continue
 		}
-
-		for _, spec := range genDecl.Specs {
-			valueSpec, ok := spec.(*ast.ValueSpec)
-			if !ok {
-				continue
-			}
-
-			for index, name := range valueSpec.Names {
-				if name.Name != variableName || index >= len(valueSpec.Values) {
-					continue
-				}
-
-				compositeLiteral, ok := valueSpec.Values[index].(*ast.CompositeLit)
-				if !ok {
-					return nil, fmt.Errorf("manifest variable %s is not a slice literal", variableName)
-				}
-
-				return compositeLiteral, nil
-			}
-		}
+		return compositeLiteral, nil
 	}
 
 	return nil, fmt.Errorf("manifest variable %s not found", variableName)
+}
+
+// RouterFindManifestCompositeLiteralInDecl searches one declaration for the target manifest variable.
+func RouterFindManifestCompositeLiteralInDecl(
+	declaration ast.Decl,
+	variableName string,
+) (*ast.CompositeLit, bool, error) {
+	genDecl, ok := declaration.(*ast.GenDecl)
+	if !ok || genDecl.Tok != token.VAR {
+		return nil, false, nil
+	}
+
+	for _, spec := range genDecl.Specs {
+		compositeLiteral, found, err := RouterFindManifestCompositeLiteralInSpec(spec, variableName)
+		if err != nil {
+			return nil, false, err
+		}
+		if found {
+			return compositeLiteral, true, nil
+		}
+	}
+
+	return nil, false, nil
+}
+
+// RouterFindManifestCompositeLiteralInSpec searches one value spec for the target manifest variable.
+func RouterFindManifestCompositeLiteralInSpec(
+	spec ast.Spec,
+	variableName string,
+) (*ast.CompositeLit, bool, error) {
+	valueSpec, ok := spec.(*ast.ValueSpec)
+	if !ok {
+		return nil, false, nil
+	}
+
+	for index, name := range valueSpec.Names {
+		if name.Name != variableName || index >= len(valueSpec.Values) {
+			continue
+		}
+
+		compositeLiteral, ok := valueSpec.Values[index].(*ast.CompositeLit)
+		if !ok {
+			return nil, false, fmt.Errorf("manifest variable %s is not a slice literal", variableName)
+		}
+
+		return compositeLiteral, true, nil
+	}
+
+	return nil, false, nil
 }
 
 // RouterValidateManifestEntryUniqueness rejects duplicate names and port values.
@@ -366,17 +403,30 @@ func RouterValidateManifestEntryUniqueness(
 	entryFields map[string]string,
 ) error {
 	for _, element := range compositeLiteral.Elts {
-		existingFields, err := RouterReadManifestEntryFields(element)
-		if err != nil {
+		if err := RouterValidateManifestEntryElement(element, variableName, entryFields); err != nil {
 			return err
 		}
+	}
 
-		if entryFields["Name"] != "" && existingFields["Name"] == entryFields["Name"] {
-			return fmt.Errorf("entry with name %q already exists in %s", entryFields["Name"], variableName)
-		}
-		if entryFields["Value"] != "" && existingFields["Value"] == entryFields["Value"] {
-			return fmt.Errorf("port value %q already exists in %s", entryFields["Value"], variableName)
-		}
+	return nil
+}
+
+// RouterValidateManifestEntryElement validates one existing manifest entry against the requested fields.
+func RouterValidateManifestEntryElement(
+	element ast.Expr,
+	variableName string,
+	entryFields map[string]string,
+) error {
+	existingFields, err := RouterReadManifestEntryFields(element)
+	if err != nil {
+		return err
+	}
+
+	if duplicateName := entryFields["Name"]; duplicateName != "" && existingFields["Name"] == duplicateName {
+		return fmt.Errorf("entry with name %q already exists in %s", duplicateName, variableName)
+	}
+	if duplicateValue := entryFields["Value"]; duplicateValue != "" && existingFields["Value"] == duplicateValue {
+		return fmt.Errorf("port value %q already exists in %s", duplicateValue, variableName)
 	}
 
 	return nil
@@ -755,8 +805,8 @@ func RouterGenerateFileFromTemplate(filePath, templateSource string, data any) e
 		return fmt.Errorf("parse generation template: %w", err)
 	}
 
-	if err := tmpl.Execute(&builder, data); err != nil {
-		return fmt.Errorf("execute generation template: %w", err)
+	if executeErr := tmpl.Execute(&builder, data); executeErr != nil {
+		return fmt.Errorf("execute generation template: %w", executeErr)
 	}
 
 	formattedSource, err := format.Source([]byte(builder.String()))
