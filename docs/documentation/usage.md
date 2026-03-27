@@ -53,48 +53,53 @@ chrome, err := capabilities.ResolveCLIChromeStyler()
 interactor, err := capabilities.ResolveCLIInteractor()
 ```
 
-## Add a Port
+## Copy Into a New Module
+
+If you copied the router bundle from this repository into a different Go module, run:
+
+```bash
+go run ./internal/router/tools/wrlk module sync
+```
+
+This is a one-time bootstrap step. It rewrites bundled `internal/router` imports from the source module path to the module declared in the local `go.mod`.
+
+## Register a Port
 
 Use the CLI:
 
 ```bash
-go run ./internal/router/tools/wrlk add --name PortFoo --value foo
+go run ./internal/router/tools/wrlk register --port --router --name PortFoo --value foo
 ```
 
 That updates:
+- `internal/router/router_manifest.go`
 - `internal/router/ports.go`
 - `internal/router/registry_imports.go`
 - `internal/router/router.lock`
 
-## Add an Extension
+## Register an Extension
 
-There are separate scaffold and wiring commands.
+Use `wrlk register` against the manifest layer, then let the generated runtime wiring stay in sync.
 
 Optional capability extension:
 
 ```bash
-go run ./internal/router/tools/wrlk ext add --name telemetry
+go run ./internal/router/tools/wrlk register --ext --router --name telemetry
 ```
 
-This creates `internal/router/ext/extensions/telemetry/` and wires it into `internal/router/ext/optional_extensions.go`.
+This wires `internal/router/ext/extensions/telemetry/` into `internal/router/ext/optional_extensions.go` and records the declaration in `internal/router/router_manifest.go`.
 
-Wire an existing optional capability extension:
+Wire a required application extension:
 
 ```bash
-go run ./internal/router/tools/wrlk ext install --name telemetry
+go run ./internal/router/tools/wrlk register --ext --app --name billing
 ```
 
-This wires the existing `internal/router/ext/extensions/telemetry/` package into `internal/router/ext/optional_extensions.go`.
+This wires `internal/adapters/billing/` into `internal/router/ext/extensions.go` and records the declaration in `internal/router/ext/app_manifest.go`.
 
-Required application extension:
+`register --ext --router` is for router-owned extensions under `internal/router/ext/extensions/<name>/`, which boot first. `register --ext --app` is for app-owned adapters such as `internal/adapters/<name>/`, which boot second and then rely on declared `Consumes()` edges for ordering within the application layer.
 
-```bash
-go run ./internal/router/tools/wrlk ext app add --name billing
-```
-
-This wires `internal/adapters/billing/` into `internal/router/ext/extensions.go`.
-
-Use `--dry-run` with `ext add`, `ext install`, `ext remove`, `ext app add`, or `ext app remove` to preview changes.
+Use `--dry-run` with `wrlk register`, `wrlk ext remove`, or `wrlk ext app remove` to preview changes.
 
 ## Layout
 

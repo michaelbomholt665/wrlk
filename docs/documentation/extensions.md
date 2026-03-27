@@ -19,10 +19,11 @@ Use an **optional capability extension** when:
 For this category:
 
 - the extension package lives in `internal/router/ext/extensions/<name>/`
-- the extension is wired in `internal/router/ext/optional_extensions.go`
+- the declaration lives in `internal/router/router_manifest.go`
+- the generated runtime wiring lands in `internal/router/ext/optional_extensions.go`
 - `Required()` returns `false`
 
-Use a **required application extension** only when the app cannot boot without it. Those belong in `internal/router/ext/extensions.go`, but the package itself stays app-owned under `internal/adapters/<name>/` and is wired with `wrlk ext app add`.
+Use a **required application extension** only when the app cannot boot without it. Those declarations live in `internal/router/ext/app_manifest.go` and generate into `internal/router/ext/extensions.go` with `wrlk register --ext --app`, while the package itself stays app-owned under `internal/adapters/<name>/`. Router-owned extensions boot first; required application adapters boot second and then rely on declared `Consumes()` edges for ordering within that second phase.
 
 ## The Pattern That Actually Works
 
@@ -49,11 +50,12 @@ Goal: provide a reusable table-rendering capability to the application through t
 Use the router tool instead of editing files by hand:
 
 ```bash
-go run ./internal/router/tools/wrlk add --name PortCLIStyle --value cli-style
+go run ./internal/router/tools/wrlk register --port --router --name PortCLIStyle --value cli-style
 ```
 
 That updates:
 
+- `internal/router/router_manifest.go`
 - `internal/router/ports.go`
 - `internal/router/registry_imports.go`
 - `internal/router/router.lock`
@@ -88,7 +90,7 @@ Why this matters:
 ### 3. Scaffold the Optional Extension
 
 ```bash
-go run ./internal/router/tools/wrlk ext add --name prettystyle
+go run ./internal/router/tools/wrlk register --ext --router --name prettystyle
 ```
 
 This creates:
@@ -96,7 +98,7 @@ This creates:
 - `internal/router/ext/extensions/prettystyle/doc.go`
 - `internal/router/ext/extensions/prettystyle/extension.go`
 
-and wires the extension into `internal/router/ext/optional_extensions.go`.
+and wires the extension into `internal/router/ext/optional_extensions.go` while recording the declaration in `internal/router/router_manifest.go`.
 
 ### 4. Add the Concrete Provider
 
@@ -333,8 +335,9 @@ For an optional capability extension, consumers should degrade gracefully when t
 
 Before calling an extension “done”, verify all of this:
 
-- the port was added with `wrlk add`
-- the optional extension package was scaffolded with `wrlk ext add` or wired with `wrlk ext install`
+- the port was added with `wrlk register --port --router`
+- the optional extension package was wired with `wrlk register --ext --router`
+- the required application extension was wired with `wrlk register --ext --app`
 - `Required()` matches the intended boot policy
 - `Provides()` matches the registered port exactly
 - `Consumes()` is truthful

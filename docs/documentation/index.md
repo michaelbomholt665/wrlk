@@ -7,7 +7,8 @@ The Router is a zero-internal-dependency port registry and extension boot layer 
 The Router is a compile-time dependency injection system that:
 
 - **Centralizes port declarations** - All port names are defined in one place (`ports.go`)
-- **Wires extensions explicitly** - Required application extensions live in `ext/extensions.go`; optional capability extensions live in `ext/optional_extensions.go`
+- **Wires extensions explicitly** - Required application extensions generate into `ext/extensions.go`; optional capability extensions generate into `ext/optional_extensions.go`
+- **Uses manifests as the edit surface** - Router-owned declarations live in `router_manifest.go` and `ext/app_manifest.go`
 - **Prevents coupling creep** - Frozen/mutable file split stops accidental modifications to core contracts
 - **Provides lock-free reads** - Uses `atomic.Pointer` for O(1) provider resolution after boot
 
@@ -22,8 +23,8 @@ Without guardrails, AI agents (and developers) tend to:
 
 The Router solves this by making dependency wiring an auditable declaration surface. Cross-adapter coupling requires explicit changes to:
 - [`ports.go`](architecture.md#portsgo--mutable-port-whitelist) - port whitelist
-- `internal/router/ext/extensions.go` - required application extensions
-- `internal/router/ext/optional_extensions.go` - optional capability extensions
+- `internal/router/ext/app_manifest.go` - required application extension declarations
+- `internal/router/router_manifest.go` - router-native port and optional extension declarations
 
 ### Secondary Problem Solved: Shared Infrastructure Modification
 
@@ -85,10 +86,11 @@ _ = rendered
 Use the CLI tool to add a new port:
 
 ```bash
-go run ./internal/router/tools/wrlk add --name PortFoo --value foo
+go run ./internal/router/tools/wrlk register --port --router --name PortFoo --value foo
 ```
 
 This command:
+- Adds the declaration to `internal/router/router_manifest.go`
 - Adds the constant to [`ports.go`](architecture.md#portsgo--mutable-port-whitelist)
 - Adds the case to [`registry_imports.go`](architecture.md#registry_importsgo--mutable)
 - Rewrites [`router.lock`](architecture.md#routerlock--ndjson-checksums) atomically
@@ -103,7 +105,7 @@ See [CLI Tools](cli-tools.md) for more commands.
 | [Concepts](concepts.md)               | Core concepts: PortName, Extension interfaces, Registry, dependency ordering |
 | [API Reference](api-reference.md)     | API documentation for all public functions and error codes                   |
 | [Usage Guide](usage.md)               | Step-by-step usage: boot, resolve, extend, add ports                         |
-| [CLI Tools](cli-tools.md)             | CLI commands: `wrlk lock`, `wrlk add`, `wrlk ext`, `wrlk live`, `wrlk guide` |
+| [CLI Tools](cli-tools.md)             | CLI commands: `wrlk lock`, `wrlk register`, `wrlk ext`, `wrlk live`, `wrlk guide` |
 | [Extension Authoring](extensions.md)  | Detailed guide for building real optional and app-consumable extensions      |
 | [Troubleshooting](troubleshooting.md) | Common errors, FAQ, error code reference                                     |
 | [Security Model](security-model.md)   | AI guardrails, router.lock, frozen/mutable protection                        |
@@ -123,9 +125,11 @@ internal/router/
 ├── MUTABLE (host project wiring)
 │   ├── ports.go              # PortName constants
 │   ├── registry_imports.go   # Port validation + atomic registry state
+│   ├── router_manifest.go    # Source of truth for ports + router-owned extensions
 │   ├── ext/
-│   │   ├── extensions.go          # Required application extensions + boot policy wrapper
-│   │   └── optional_extensions.go # Optional capability extensions
+│   │   ├── app_manifest.go        # Source of truth for required app extensions
+│   │   ├── extensions.go          # Generated required application extensions + boot policy wrapper
+│   │   └── optional_extensions.go # Generated optional capability extensions
 │
 ├── FROZEN (never edit directly)
 │   ├── extension.go          # Extension interfaces + RouterLoadExtensions

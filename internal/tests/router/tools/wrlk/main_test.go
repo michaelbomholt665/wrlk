@@ -281,6 +281,14 @@ func TestWrlkLiveRunHelp_PrintsRunUsage(t *testing.T) {
 	assert.Contains(t, result.stdout, "--timeout")
 }
 
+func TestWrlkModuleHelp_PrintsUsage(t *testing.T) {
+	result := runWrlkCommand(t, repositoryRoot(t), "module", "--help")
+
+	require.NoError(t, result.err, result.stderr)
+	assert.Equal(t, 0, result.exitCode)
+	assert.Contains(t, result.stdout, "module sync")
+}
+
 func createRouterFixture(t *testing.T, files map[string]string) string {
 	t.Helper()
 

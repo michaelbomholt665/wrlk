@@ -69,8 +69,10 @@ The router provides development workflow constraints specifically designed to gu
 
 - `internal/router/ports.go` - Port constants
 - `internal/router/registry_imports.go` - Port validation
-- `internal/router/ext/extensions.go` - Required application extensions
-- `internal/router/ext/optional_extensions.go` - Optional capability extensions
+- `internal/router/router_manifest.go` - Router-owned port and optional extension declarations
+- `internal/router/ext/app_manifest.go` - Required application extension declarations
+- `internal/router/ext/extensions.go` - Generated required application extensions
+- `internal/router/ext/optional_extensions.go` - Generated optional capability extensions
 
 **Why this matters:**
 - Wrong path: Edit frozen files (harder, requires understanding consequences)
@@ -103,8 +105,10 @@ The mutable wiring surface is intentionally narrow:
 
 - `ports.go` should contain port declarations only
 - `registry_imports.go` should contain the whitelist and registry declaration only
-- `ext/optional_extensions.go` should remain wiring-focused
-- `ext/extensions.go` is the required application boot composition layer and boot-policy wrapper, and should remain explicit
+- `router_manifest.go` should remain the source of truth for router-owned ports and optional extensions
+- `ext/app_manifest.go` should remain the source of truth for required application adapters
+- generated `ext/optional_extensions.go` should remain wiring-focused
+- generated `ext/extensions.go` is the required application boot composition layer and boot-policy wrapper, and should remain explicit
 
 The main wiring files are designed to stay simple and auditable, typically containing:
 - Constant declarations
@@ -202,7 +206,7 @@ provider, err := router.RouterResolveRestrictedPort(
 
 2. **Use CLI to add ports:**
    ```bash
-   go run ./internal/router/tools/wrlk add --name PortFoo --value foo
+   go run ./internal/router/tools/wrlk register --port --router --name PortFoo --value foo
    ```
 
 3. **Don't edit frozen files** - If you think you need to, reconsider the approach

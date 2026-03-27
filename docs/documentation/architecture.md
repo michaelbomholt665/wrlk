@@ -7,11 +7,13 @@ This document provides a deep dive into the router's folder structure, the froze
 ```
 internal/router/
 ├── MUTABLE — host project wiring
-│   ├── ports.go              # PortName constants (whitelist)
-│   ├── registry_imports.go   # RouterValidatePortName + atomic registry declaration
+│   ├── router_manifest.go    # Source of truth for ports + router-owned optional extensions
+│   ├── ports.go              # Generated PortName constants (whitelist)
+│   ├── registry_imports.go   # Generated RouterValidatePortName + atomic registry declaration
 │   └── ext/
-│       ├── extensions.go          # Required application extensions + RouterBootExtensions wrapper
-│       └── optional_extensions.go # Optional capability extensions wired ahead of application extensions
+│       ├── app_manifest.go        # Source of truth for required application extensions
+│       ├── extensions.go          # Generated required application extensions + RouterBootExtensions wrapper
+│       └── optional_extensions.go # Generated optional capability extensions wired ahead of application extensions
 │
 ├── FROZEN — never edit directly
 │   ├── registry.go           # Atomic publication + RouterResolveProvider
@@ -118,8 +120,8 @@ import (
 )
 
 var extensions = []router.Extension{
-    // App-owned required extensions only.
-    // Wired with `wrlk ext app add` or maintained manually.
+    // Generated from app_manifest.go.
+    // Required application adapters only.
 }
 
 // RouterBootExtensions validates boot policy, wires optional extensions first,
@@ -232,8 +234,8 @@ This preserves the zero-contention post-boot read path without introducing a sec
 
 The router supports two distinct extension layers:
 
-- **Application extension path** - for required application adapters in `ext/extensions.go`
-- **Optional extension path** - for router-extending capabilities in `ext/optional_extensions.go`
+- **Application extension path** - for required application adapters declared in `ext/app_manifest.go` and generated into `ext/extensions.go`
+- **Optional extension path** - for router-extending capabilities declared in `router_manifest.go` and generated into `ext/optional_extensions.go`
 
 These layers must remain structurally separate in wiring even though both
 ultimately register providers by port name.

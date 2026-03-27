@@ -34,25 +34,25 @@ provider, _ := router.RouterResolveProvider(router.PortPrimary)
 
 **Error:** `port "foo" not found`
 
-**Cause:** The port is not registered in any extension.
+**Cause:** The port is not declared in the manifests or not wired into the generated extension layers.
 
 **Fix:**
 
-1. Verify the port exists in `ports.go`:
+1. Verify the port exists in `internal/router/router_manifest.go` and has been regenerated into `ports.go`:
 ```go
 const (
     PortFoo PortName = "foo"  // Make sure this exists
 )
 ```
 
-2. Verify the required extension is in `internal/router/ext/extensions.go`:
+2. If this is a required application adapter, verify it is declared in `internal/router/ext/app_manifest.go` and generated into `internal/router/ext/extensions.go`:
 ```go
 var extensions = []router.Extension{
     &foo.Extension{},  // Or the concrete extension you wired
 }
 ```
 
-3. If the extension is optional, verify it's in `internal/router/ext/optional_extensions.go`:
+3. If this is a router-owned optional capability extension, verify it is declared in `internal/router/router_manifest.go` and generated into `internal/router/ext/optional_extensions.go`:
 ```go
 var optionalExtensions = []router.Extension{
     &foo.Extension{},  // For optional capabilities
@@ -85,7 +85,7 @@ func RouterValidatePortName(port PortName) bool {
 Or use the CLI to add the port correctly:
 
 ```bash
-go run ./internal/router/tools/wrlk add --name PortFoo --value foo
+go run ./internal/router/tools/wrlk register --port --router --name PortFoo --value foo
 ```
 
 ---
@@ -162,9 +162,11 @@ result := provider.(ports.PrimaryProvider)  // Correct
 
 **Fix:**
 
-Check ordering in the correct slice:
-- `internal/router/ext/extensions.go` for required application extensions
-- `internal/router/ext/optional_extensions.go` for optional capability extensions
+Check ownership and ordering in the correct layer:
+- `internal/router/router_manifest.go` and generated `internal/router/ext/optional_extensions.go` for router-owned optional capability extensions
+- `internal/router/ext/app_manifest.go` and generated `internal/router/ext/extensions.go` for required application adapters
+
+Router-owned extensions always boot first. Application adapters boot second, and their internal order is then resolved from declared `Consumes()` edges plus the existing tie-break behavior.
 
 Example:
 
@@ -320,9 +322,9 @@ go run ./internal/router/tools/wrlk lock restore
 
 ### When should I use optional extensions vs application extensions?
 
-**Application extensions** are required for the application to boot. They belong in `extensions.go`. If they fail, boot fails with a fatal error.
+**Application extensions** are required for the application to boot. Their declarations belong in `app_manifest.go`, and they generate into `extensions.go`. If they fail, boot fails with a fatal error.
 
-**Optional extensions** are capabilities that extend the router. They belong in `optional_extensions.go`. If they fail, boot continues with warnings.
+**Optional extensions** are capabilities that extend the router. Their declarations belong in `router_manifest.go`, and they generate into `optional_extensions.go`. If they fail, boot continues with warnings.
 
 Use optional extensions for:
 - Telemetry and monitoring
@@ -338,7 +340,8 @@ Use application extensions for:
 Wire them with:
 
 ```bash
-go run ./internal/router/tools/wrlk ext app add --name billing
+go run ./internal/router/tools/wrlk register --ext --router --name telemetry
+go run ./internal/router/tools/wrlk register --ext --app --name billing
 ```
 
 ---
@@ -348,7 +351,7 @@ go run ./internal/router/tools/wrlk ext app add --name billing
 Use the CLI (recommended):
 
 ```bash
-go run ./internal/router/tools/wrlk add --name PortFoo --value foo
+go run ./internal/router/tools/wrlk register --port --router --name PortFoo --value foo
 ```
 
 This handles:

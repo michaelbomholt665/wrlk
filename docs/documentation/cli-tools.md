@@ -10,11 +10,11 @@ go run ./internal/router/tools/wrlk <command>
 
 | Command | Purpose |
 | --- | --- |
-| `wrlk add` | Add a router port |
-| `wrlk ext add` | Scaffold an optional capability extension |
-| `wrlk ext install` | Wire an existing optional capability extension |
+| `wrlk register --port --router` | Add a router port via `router_manifest.go` |
+| `wrlk register --ext --router` | Wire an optional capability extension via `router_manifest.go` |
+| `wrlk register --ext --app` | Wire a required application extension via `app_manifest.go` |
+| `wrlk module sync` | Rewrite copied router imports to the current `go.mod` module path |
 | `wrlk ext remove` | Remove an optional capability extension wiring |
-| `wrlk ext app add` | Wire an existing required application adapter |
 | `wrlk ext app remove` | Remove an application adapter wiring |
 | `wrlk lock verify` | Verify `router.lock` |
 | `wrlk lock update` | Update `router.lock` after intentional core changes |
@@ -26,35 +26,37 @@ go run ./internal/router/tools/wrlk <command>
 
 ## Common Commands
 
+Sync copied router imports to the current module path:
+
+```bash
+go run ./internal/router/tools/wrlk module sync
+```
+
+Use this once after copying the router bundle into a different repository or module. It rewrites bundled `internal/router` import paths from the source module to the module declared in `go.mod`.
+
 Add a port:
 
 ```bash
-go run ./internal/router/tools/wrlk add --name PortFoo --value foo
+go run ./internal/router/tools/wrlk register --port --router --name PortFoo --value foo
 ```
 
 Add an optional capability extension:
 
 ```bash
-go run ./internal/router/tools/wrlk ext add --name telemetry
+go run ./internal/router/tools/wrlk register --ext --router --name telemetry
 ```
 
-This creates `internal/router/ext/extensions/telemetry/` and wires it into `internal/router/ext/optional_extensions.go`.
+This wires `internal/router/ext/extensions/telemetry/` into `internal/router/ext/optional_extensions.go`.
 
-Wire an existing optional capability extension:
+Wire a required application extension:
 
 ```bash
-go run ./internal/router/tools/wrlk ext install --name telemetry
+go run ./internal/router/tools/wrlk register --ext --app --name billing
 ```
 
-This wires the existing `internal/router/ext/extensions/telemetry/` package into `internal/router/ext/optional_extensions.go`.
+This wires `internal/adapters/billing/` into `internal/router/ext/extensions.go`.
 
-Wire an existing required application adapter:
-
-```bash
-go run ./internal/router/tools/wrlk ext app add --name billing
-```
-
-This wires `internal/adapters/billing` into `internal/router/ext/extensions.go`.
+Historical migration note: earlier router refactors used `wrlk ext add`, `wrlk ext install`, and `wrlk ext app add`. The preferred edit surface is now `wrlk register`, with manifests as the source of truth.
 
 Verify router core integrity:
 
@@ -88,8 +90,8 @@ go run ./internal/router/tools/wrlk live run --expect scanner-a --expect scanner
 
 ## Notes
 
-- `ext add`, `ext install`, `ext remove`, `ext app add`, and `ext app remove` support `--dry-run`.
-- `wrlk add` also supports `--dry-run`.
-- `extensions.go` is app-owned and should contain only the required extensions you actually want booted.
+- `wrlk register`, `wrlk ext remove`, and `wrlk ext app remove` support `--dry-run`.
+- `wrlk module sync` is a one-time bootstrap step for copied router bundles, not part of normal day-to-day router edits.
+- `internal/router/ext/app_manifest.go` is the source of truth for required application extension wiring; `extensions.go` remains generated runtime output.
 - `optional_extensions.go` is for non-fatal capability extensions only.
 - `lock verify` tracks only `internal/router/extension.go` and `internal/router/registry.go`.

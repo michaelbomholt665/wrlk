@@ -149,6 +149,10 @@ func RouterDispatchCLICommand(
 		return RouterRunLockCommand(options, args[1:], stdout)
 	case "live":
 		return RouterRunLiveCommand(options, args[1:], stdout, stderr)
+	case "module":
+		return RouterRunModuleCommand(options, args[1:], stdout)
+	case "register":
+		return RouterRunRegisterCommand(options, args[1:], stdout)
 	case "add":
 		return RouterRunPortgenCommand(options, args[1:], stdout, stderr)
 	case "ext":
@@ -179,6 +183,12 @@ func RouterWriteCLIUsage(writer io.Writer) error {
 	}
 	if _, err := fmt.Fprintln(writer, "  live run"); err != nil {
 		return fmt.Errorf("write CLI usage live run command: %w", err)
+	}
+	if _, err := fmt.Fprintln(writer, "  module sync"); err != nil {
+		return fmt.Errorf("write CLI usage module sync command: %w", err)
+	}
+	if _, err := fmt.Fprintln(writer, "  register"); err != nil {
+		return fmt.Errorf("write CLI usage register command: %w", err)
 	}
 	if _, err := fmt.Fprintln(writer, "  add"); err != nil {
 		return fmt.Errorf("write CLI usage add command: %w", err)
@@ -214,21 +224,23 @@ func RouterWriteGuide(writer io.Writer) error {
 		"Router guide:",
 		"",
 		"Workflow:",
-		"  1. Add or update a port with `wrlk add --name <PortName> --value <port-name>`.",
-		"  2. Add an extension package under `internal/router/ext/extensions/<name>/` only for router-native optional capabilities.",
-		"  3. Wire it through exactly one composition file:",
-		"     - `internal/router/ext/extensions.go` for required application extensions that must boot.",
-		"     - `internal/router/ext/optional_extensions.go` for optional capability extensions only.",
-		"  4. Run `wrlk lock verify` before and after changes to catch drift in protected router files.",
-		"  5. Run `wrlk lock update` only after intentional router core changes are reviewed and accepted.",
-		"  6. Run `wrlk lock restore` to put protected files back to the last local snapshot written by `wrlk add` or `wrlk ext ...` mutations.",
+		"  1. If this router bundle was copied into a new Go module, run `wrlk module sync` once.",
+		"  2. Register router-owned ports with `wrlk register --port --router --name <PortName> --value <port-name>`.",
+		"  3. Add an extension package under `internal/router/ext/extensions/<name>/` only for router-native optional capabilities.",
+		"  4. Register optional router extensions with `wrlk register --ext --router --name <ExtensionName>`.",
+		"  5. Register required app extensions with `wrlk register --ext --app --name <ExtensionName>`.",
+		"  6. Run `wrlk lock verify` before and after changes to catch drift in protected router files.",
+		"  7. Run `wrlk lock update` only after intentional router core changes are reviewed and accepted.",
+		"  8. Run `wrlk lock restore` to put protected files back to the last local snapshot written by `wrlk register` or legacy mutation commands.",
 		"",
 		"Choose the command deliberately:",
-		"  - `wrlk add` adds ports. Do not hand-edit ports first and update generated wiring later.",
-		"  - `wrlk ext add` scaffolds and wires a new optional capability extension package.",
-		"  - `wrlk ext install` wires an existing optional capability extension package.",
+		"  - `wrlk module sync` is a one-time bootstrap command for copied router bundles. It rewrites bundled imports from the source module to the current `go.mod` module path.",
+		"  - `wrlk register --port --router` appends to `router_manifest.go` and regenerates `ports.go` plus `registry_imports.go`.",
+		"  - `wrlk register --ext --router` appends to `router_manifest.go` and regenerates `optional_extensions.go`.",
+		"  - `wrlk register --ext --app` appends to `app_manifest.go` and regenerates `extensions.go`.",
+		"  - `wrlk add`, `wrlk ext add`, and `wrlk ext install` are legacy mutation paths during migration.",
+		"  - `wrlk ext app add` remains the legacy app-owned wiring path until app composition moves fully out of router-owned tooling.",
 		"  - `wrlk ext remove` unwires an optional capability extension package.",
-		"  - `wrlk ext app add` wires an existing required application adapter from `internal/adapters/<name>`.",
 		"  - `wrlk ext app remove` unwires an application adapter from `extensions.go`.",
 		"  - `wrlk guide current` prints the currently wired ports and extension inventory for the target root.",
 		"  - `wrlk lock verify` checks checksum-tracked router core files for drift.",
@@ -254,10 +266,9 @@ func RouterWriteGuide(writer io.Writer) error {
 		"  - Boot rollback is boot-only. `RouterRollbackBoot` undoes startup work for aborted boot attempts; it is not full runtime shutdown management.",
 		"",
 		"Short examples:",
-		"  - Add a port: `wrlk add --name PortTelemetry --value telemetry`",
-		"  - Add a new optional extension package: `wrlk ext add --name telemetry`",
-		"  - Wire an existing optional extension package: `wrlk ext install --name telemetry`",
-		"  - Wire an existing application adapter: `wrlk ext app add --name postgres`",
+		"  - Add a port: `wrlk register --port --router --name PortTelemetry --value telemetry`",
+		"  - Wire an existing optional extension package: `wrlk register --ext --router --name telemetry`",
+		"  - Wire an existing application adapter: `wrlk register --ext --app --name postgres`",
 		"  - Simple provider extension:",
 		"      func (e *Extension) Provides() []router.PortName { return []router.PortName{router.PortTelemetry} }",
 		"      func (e *Extension) RouterProvideRegistration(reg *router.Registry) error {",

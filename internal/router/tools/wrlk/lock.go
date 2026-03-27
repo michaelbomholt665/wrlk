@@ -28,6 +28,10 @@ var snapshotRouterFiles = []string{
 	"internal/router/registry.go",
 	"internal/router/ports.go",
 	"internal/router/registry_imports.go",
+	"internal/router/router_manifest.go",
+	"internal/router/ext/app_manifest.go",
+	"internal/router/ext/optional_extensions.go",
+	"internal/router/ext/extensions.go",
 	routerLockRelativePath,
 }
 

@@ -16,11 +16,12 @@ internal/tests/router/
 ├── ext_boot_test.go         # Extension boot policy tests
 ├── capabilities_test.go     # Capability resolver tests
 ├── benchmark_test.go        # Performance benchmarks
-└── tools/wrlk/             # CLI tool tests
+	└── tools/wrlk/             # CLI tool tests
     ├── main_test.go        # lock verify/update/restore tests
     ├── live_test.go        # live run session tests
-    ├── ext_test.go         # wrlk ext add/install/remove and ext app add/remove tests
-    └── portgen_test.go     # wrlk add tests
+    ├── ext_test.go         # legacy compatibility tests for ext remove/app remove and historical add paths
+    ├── portgen_test.go     # legacy compatibility tests for historical wrlk add behavior
+    └── register_test.go    # wrlk register manifest tests
 ```
 
 ## Test Framework
@@ -201,7 +202,7 @@ go test -bench=. -benchtime=3s ./internal/tests/router/...
 | `TestWrlkGuideCommand_PrintsOperationalGuide` | guide command outputs operational guide |
 | `TestWrlkHelpFlag_PrintsTopLevelUsage`        | --help prints usage                     |
 | `TestWrlkLockHelp_PrintsLockUsage`            | lock --help prints lock subcommands     |
-| `TestWrlkAddHelp_PrintsAddUsage`              | add --help prints add usage             |
+| `TestWrlkAddHelp_PrintsAddUsage`              | legacy add help remains available during migration |
 | `TestWrlkLiveHelp_PrintsLiveUsage`            | live --help prints live usage           |
 | `TestWrlkLiveRunHelp_PrintsRunUsage`          | live run --help prints run usage        |
 
@@ -222,14 +223,14 @@ go test -bench=. -benchtime=3s ./internal/tests/router/...
 
 | Test | What It Verifies |
 | --- | --- |
-| `TestExtAdd_CreatesDocGo` | `ext add` scaffolds package docs |
-| `TestExtAdd_CreatesExtensionGo` | `ext add` scaffolds extension boilerplate |
-| `TestExtInstall_WiresExistingOptionalExtension` | `ext install` wires an existing optional extension |
+| `TestExtAdd_CreatesDocGo` | historical compatibility for `ext add` scaffolding |
+| `TestExtAdd_CreatesExtensionGo` | historical compatibility for `ext add` boilerplate |
+| `TestExtInstall_WiresExistingOptionalExtension` | historical compatibility for `ext install` |
 | `TestExtRemove_UnwiresOptionalExtension` | `ext remove` unwires an optional extension |
-| `TestExtAppAdd_WiresExistingAdapter` | `ext app add` wires an existing adapter import |
+| `TestExtAppAdd_WiresExistingAdapter` | historical compatibility for `ext app add` |
 | `TestExtAppRemove_UnwiresApplicationAdapter` | `ext app remove` unwires an app adapter |
 | `TestExtInstall_DuplicateAlreadyWired_Fails` | duplicate optional install is rejected |
-| `TestExtAppAdd_DuplicateAlreadyWired_Fails` | duplicate app adapter add is rejected |
+| `TestExtAppAdd_DuplicateAlreadyWired_Fails` | duplicate legacy app adapter add is rejected |
 | `TestExtRemove_NotFound_Fails` | optional remove reports not-found |
 | `TestExtAppRemove_NotFound_Fails` | app adapter remove reports not-found |
 | `TestExtMutationOutputMentionsTargetFiles` | dry-run output points at the right composition file |

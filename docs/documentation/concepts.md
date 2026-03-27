@@ -91,7 +91,7 @@ func (e *Extension) RouterProvideRegistration(reg *router.Registry) error {
 }
 ```
 
-Wire required application adapters with `wrlk ext app add`, scaffold new optional capability packages with `wrlk ext add`, and wire existing optional capability packages with `wrlk ext install`.
+Wire required application adapters with `wrlk register --ext --app`, and wire optional capability packages with `wrlk register --ext --router`.
 
 ### RollbackExtension Interface
 

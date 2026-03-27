@@ -2,7 +2,7 @@
 
 `internal/router` is a small port registry and extension boot layer for Go applications. It gives the application one explicit place to register providers behind typed port names, boot extensions in dependency order, and publish one immutable registry snapshot that consumers can resolve from without runtime wiring logic scattered across the codebase.
 
-The package supports two extension categories. Optional capability extensions add router-native infrastructure such as CLI styling and interaction, while required application extensions wire the concrete adapters your application actually runs behind its declared ports. The package is intentionally split into a frozen core and an app-owned wiring layer: the core stays contract-blind and fast, `internal/router/ext/optional_extensions.go` owns optional capability wiring, and `internal/router/ext/extensions.go` owns required application adapter wiring plus boot-policy checks. A local `wrlk` tool and `router.lock` keep changes to the router surface explicit, reviewable, and hard to drift by accident.
+The package supports two extension categories. Optional capability extensions add router-native infrastructure such as CLI styling and interaction, while required application extensions wire the concrete adapters your application actually runs behind its declared ports. The package is intentionally split into a frozen core and manifest-backed wiring layers: `internal/router/router_manifest.go` owns router-native port and optional extension declarations, `internal/router/ext/app_manifest.go` owns required application extension declarations, and `wrlk register` regenerates the runtime files from those manifests. A local `wrlk` tool and `router.lock` keep changes to the router surface explicit, reviewable, and hard to drift by accident.
 
 ## Architecture
 
@@ -24,10 +24,10 @@ flowchart LR
     end
 
     subgraph RouterMutable["Router Wiring (mutable)"]
-        Ports["internal/router/ports.go\nport whitelist"]
-        Imports["internal/router/registry_imports.go\nport validation + snapshot state"]
+        Ports["internal/router/router_manifest.go -> ports.go\nport whitelist"]
+        Imports["internal/router/router_manifest.go -> registry_imports.go\nport validation + snapshot state"]
         OptExt["internal/router/ext/optional_extensions.go\noptional capability wiring"]
-        ReqExt["internal/router/ext/extensions.go\nrequired app wiring + boot policy"]
+        ReqExt["internal/router/ext/app_manifest.go -> extensions.go\nrequired app wiring + boot policy"]
     end
 
     subgraph RouterCore["Router Core (frozen)"]
@@ -119,8 +119,10 @@ flowchart LR
 - `internal/router/registry.go`: provider resolution and restricted resolution
 - `internal/router/error_surface.go`: router error rendering
 - `internal/router/capabilities.go`: declared capability manifest
-- `internal/router/ext/optional_extensions.go`: optional capability wiring
-- `internal/router/ext/extensions.go`: required application wiring and boot policy wrapper
+- `internal/router/router_manifest.go`: router-native port and optional extension declarations
+- `internal/router/ext/app_manifest.go`: required application extension declarations
+- `internal/router/ext/optional_extensions.go`: generated optional capability wiring
+- `internal/router/ext/extensions.go`: generated required application wiring and boot policy wrapper
 - `internal/router/tools/wrlk`: port and extension scaffolding, lock commands
 
 ## Basic Use
@@ -169,20 +171,19 @@ interactor, err := capabilities.ResolveCLIInteractor()
 ## CLI
 
 ```bash
-go run ./internal/router/tools/wrlk add --name PortFoo --value foo
-go run ./internal/router/tools/wrlk ext add --name telemetry
-go run ./internal/router/tools/wrlk ext install --name telemetry
-go run ./internal/router/tools/wrlk ext app add --name billing
+go run ./internal/router/tools/wrlk register --port --router --name PortFoo --value foo
+go run ./internal/router/tools/wrlk register --ext --router --name telemetry
+go run ./internal/router/tools/wrlk register --ext --app --name billing
 go run ./internal/router/tools/wrlk lock verify
 go run ./internal/router/tools/wrlk live run --expect scanner-a --expect scanner-b
 ```
 
 Use:
-- `ext add` to scaffold and wire a new optional capability extension in `optional_extensions.go`
-- `ext install` to wire an existing optional capability extension in `optional_extensions.go`
+- `register --port --router` to add a router port in `router_manifest.go`
+- `register --ext --router` to wire an optional capability extension in `router_manifest.go`
+- `register --ext --app` to wire a required application extension in `app_manifest.go`
 - `ext remove` to unwire an optional capability extension from `optional_extensions.go`
-- `ext app add` to wire an existing application adapter from `internal/adapters/<name>` into `extensions.go`
-- `ext app remove` to unwire an application adapter from `extensions.go`
+- `ext app remove` to unwire a required application extension from `extensions.go`
 - `live run` to start a bounded live verification session
 
 For the CLI capability split:
@@ -193,7 +194,7 @@ For the CLI capability split:
 
 ## Important Rule
 
-`internal/router/ext/extensions.go` is intentionally app-owned and starts empty. Do not leave sample or unused providers wired there.
+`internal/router/ext/extensions.go` is intentionally generated from `internal/router/ext/app_manifest.go`. Do not leave sample or unused providers wired there, and do not treat the generated file as the edit surface.
 
 Business logic should import `internal/ports` and, when needed, `internal/router/capabilities` or `internal/router` for resolution. It should not import concrete adapters or concrete extension packages.
 
